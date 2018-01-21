@@ -1,5 +1,6 @@
 import asyncio
 import aioamqp
+import json
 
 
 routing_key = 'agent.XXX'
@@ -32,13 +33,19 @@ async def on_request(channel, body, envelope, properties):
     await channel.basic_client_ack(delivery_tag=envelope.delivery_tag)
     
 async def on_heartbeat(channel, body, envelope, properties):
-    print("Heartbeat : {}".format(body))
+    print("Heartbeat : {}".format(json.loads(body.decode('utf-8'))))
 
   
 async def rpc_server():
-    transport,protocol = await aioamqp.connect(host="127.0.0.1",login="interco",
-        password="interco", virtualhost="/interco", 
-        loop=asyncio.get_event_loop())
+    protocol = None
+    while protocol is None:
+        try:
+            transport,protocol = await aioamqp.connect(host="127.0.0.1",login="interco",
+                password="interco", virtualhost="/interco", 
+                loop=asyncio.get_event_loop())
+        except:
+            protocol = None
+            await asyncio.sleep(3)
     channel = await protocol.channel()
     
     await channel.exchange('actions', 'topic')
@@ -78,12 +85,23 @@ async def rpc_server():
 
 async def send_heartbeat(channel):
     while True:
-        await channel.basic_publish(
-        payload="Hello from agent",
-        exchange_name="heartbeats",
-        routing_key="heartbeat.agent.1"
-        )
-        await asyncio.sleep(3)
+        if not channel:
+            try:
+                channel = await rpc_server()
+            except:
+                await asyncio.sleep(3)
+        try : 
+            await channel.basic_publish(
+                payload='"Hello from agent"',
+                properties = {"content_type":'application/json'}
+                exchange_name="heartbeats",
+                routing_key="heartbeat.agent.1"
+                )
+            await asyncio.sleep(3)
+        except:
+            channel = None
+        
+        
     
 event_loop = asyncio.get_event_loop()
 channel = event_loop.run_until_complete(rpc_server())

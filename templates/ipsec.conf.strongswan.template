@@ -1,0 +1,47 @@
+
+# Configuration for Interco_agent
+config setup
+
+conn %default
+    ikelifetime=60m
+    keylife=20m
+    rekeymargin=3m
+    keyingtries=1
+    authby=psk
+    mobike=no
+{% for vpn_connection in vpn_connections -%}
+conn {{vpn_connection.node_id}}
+    keyexchange={{vpn_connection.ike_policy.ike_version}}
+    left={{vpn_connection.link.self_ip}}
+    {%- if vpn_connection.link.self_nated_ip is not none %}
+    leftsubnet={{vpn_connection.link.self_nated_ip}}/32
+    {%- endif %}
+    leftid={{vpn_connection.link.self_id}}-{{vpn_connection.link.self_ip}}
+    leftfirewall=yes
+    right={{vpn_connection.link.peer_ip}}
+    {%- if vpn_connection.link.peer_nated_ip is not none %}
+    rightsubnet={{vpn_connection.link.peer_nated_ip}}/32
+    {%- endif %}
+    rightid={{vpn_connection.link.peer_id}}-{%- if vpn_connection.link.peer_nated_ip is not none %}{{vpn_connection.link.peer_nated_ip}}{%- else %}{{vpn_connection.link.peer_ip}}{%- endif %}
+    auto=route
+    closeaction=restart
+    dpdaction={{vpn_connection.dpd_action}}
+    dpddelay={{vpn_connection.dpd_interval}}s
+    #dpdtimeout={{vpn_connection.dpd_timeout}}s
+    #ike={{vpn_connection.ike_policy.encryption_algorithm}}-{{vpn_connection.ike_policy.auth_algorithm}}-{{vpn_connection.ike_policy.pfs}}
+    #ikelifetime={{vpn_connection.ike_policy.lifetime_value}}s
+    {%- if vpn_connection.ipsec_policy.transform_protocol == "ah" %}
+    #ah={{vpn_connection.ipsec_policy.auth_algorithm}};{{vpn_connection.ipsec_policy.pfs}}
+    {%- else %}
+    #esp={{vpn_connection.ipsec_policy.encryption_algorithm}}-{{vpn_connection.ipsec_policy.auth_algorithm}}-{{vpn_connection.ipsec_policy.pfs}}
+    {%- endif %}
+    #lifetime={{vpn_connection.ipsec_policy.lifetime_value}}s
+    {%- if vpn_connection.link.self_nated_ip is none and vpn_connection.link.peer_nated_ip is none %}
+    type={{vpn_connection.ipsec_policy.encapsulation_mode}}
+    {%- endif %}
+    {%- if vpn_connection.mark is not none %}
+    mark_out={{vpn_connection.mark}}
+    {%- endif %}
+    
+    
+{% endfor %}

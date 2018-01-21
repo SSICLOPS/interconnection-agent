@@ -10,7 +10,7 @@ async def handle(request):
     # for example path and method
     var = request.match_info.get('var')
     response_obj = { 'status' : 'success', 'var': var }
-    data = await request.json()
+    data = await request.text()
     print(data)
     response_obj['var'] = await request.app['fibo_client'].call(int(var))
     return web.Response(status=200, content_type="application/json", 
@@ -34,10 +34,16 @@ class FibonacciRpcClient(object):
 
         
     async def connect(self):
-        """ an `__init__` method can't be a coroutine"""
-        self.transport, self.protocol = await aioamqp.connect(host="127.0.0.1",
-            login="interco", password="interco", virtualhost="/interco", 
-            loop=asyncio.get_event_loop())
+        
+        while self.protocol is None :
+            try:
+        
+                self.transport, self.protocol = await aioamqp.connect(host="127.0.0.1",
+                    login="interco", password="interco", virtualhost="/interco", 
+                    loop=asyncio.get_event_loop())
+            except:
+                self.protocol = None
+                await asyncio.sleep(3)
         self.channel = await self.protocol.channel()
 
         
@@ -80,13 +86,21 @@ class FibonacciRpcClient(object):
     async def send_heartbeat(self):
         while True:
             if not self.protocol:
-                await self.connect()
-            await self.channel.basic_publish(
-            payload="Hello from controller",
-            exchange_name="heartbeats",
-            routing_key="heartbeat.controller"
-            )
-            await asyncio.sleep(3)
+                try:
+                    await self.connect()
+                except:
+                    await asyncio.sleep(3)
+            try : 
+                await self.channel.basic_publish(
+                    payload="Hello from controller",
+                    exchange_name="heartbeats",
+                    routing_key="heartbeat.controller"
+                    )
+                await asyncio.sleep(3)
+            except:
+                if self.protocol:
+                    self.protocol.close()
+                self.protocol = None
     
     async def on_response(self, channel, body, envelope, properties):
         if self.corr_id == properties.correlation_id:
