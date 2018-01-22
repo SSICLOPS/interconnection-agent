@@ -20,7 +20,7 @@ def no_op_callback(channel, body, envelope, properties):
 
 class Amqp_client(object):
 
-    def __init__(self, cloud_id, **kwargs):
+    def __init__(self, **kwargs):
         default_values = {"host": "127.0.0.1", "login": "guest", "loop": None, 
             "password": "guest", "virtualhost": "/", "port": None, "ssl": False,
             "transport": None, "protocol": None, "channel": None,
@@ -29,8 +29,11 @@ class Amqp_client(object):
             "heartbeat_callback": no_op_callback,
             "action_callback": no_op_callback
         }
-        utils3.set_attributes(self, override = False, **default_values)
-        utils3.set_attributes(self, override = True, **kwargs)
+        try:
+            utils3.set_attributes(self, override = False, **default_values)
+            utils3.set_attributes(self, override = True, **kwargs)
+        except:
+            traceback.print_exc()
         if self. port is None:
             if self.ssl:
                 self.port = 5671
@@ -38,9 +41,12 @@ class Amqp_client(object):
                 self.port = 5672
         self.connect_lock = asyncio.Lock()
         self.connected = asyncio.Event()
-        self.runtime_id = random.randint(1,999)
-        self.uuid = cloud_id
-        self.hearbeat_payload = json.dumps({"uuid":self.uuid,
+        self.generate_heartbeat_payload()
+        
+        
+    def generate_heartbeat_payload(self):
+        self.runtime_id = random.randint(1,MAX_KEY)
+        self.hearbeat_payload = json.dumps({"node_uuid":self.node_uuid,
             "runtime_id":self.runtime_id
         })
 
@@ -70,10 +76,7 @@ class Amqp_client(object):
                     e.errno, e.strerror
                 ))
                 await asyncio.sleep(3)
-        self.runtime_id = random.randint(1,999)
-        self.hearbeat_payload = json.dumps({"uuid":self.uuid,
-            "runtime_id": self.runtime_id
-        })
+        self.generate_heartbeat_payload()
         self.channel = await self.protocol.channel()
 
         
@@ -103,8 +106,7 @@ class Amqp_client(object):
             await self.channel.queue_bind(
                 exchange_name=AMQP_EXCHANGE_ACTIONS,
                 queue_name=self.process_queue,
-                routing_key="abc"
-                #routing_key="{}{}".format(AMQP_KEY_ACTIONS, self.uuid)
+                routing_key="{}{}".format(AMQP_KEY_ACTIONS, self.node_uuid)
             )
             
         
@@ -124,18 +126,6 @@ class Amqp_client(object):
         logging.info("AMQP connected")
         self.connected.set()
         self.connect_lock.release()
-        
-        
-    async def on_message(self, channel, body, envelope, properties):
-        return
-        #don't forget to check the properties.correlation_id:
-        # use https://docs.python.org/3/library/asyncio-sync.html#asyncio.Event
-        # for synchronization
-
-        
-    async def on_heartbeat(self, channel, body, envelope, properties):
-        logging.debug("Heartbeat received {}".format(body.decode("utf-8")))
-        return
         
         
     async def send_heartbeat(self, routing_key):

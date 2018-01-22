@@ -1,33 +1,98 @@
 from common import amqp_client
 import json
 import traceback
+import logging
+import agent
+import uuid
 
 class Amqp_controller(amqp_client.Amqp_client):
 
-    def __init__(self, cloud_id, **kwargs):
-        super().__init__(cloud_id, **kwargs)
+    def __init__(self, data_store, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.actions_list = {}
         self.callbacks_list = {}
-        self.action_callback = self.on_message
+        self.data_store = data_store
         
-    async def publish_action(self, callback, **kwargs):
-        self.actions_list[kwargs["payload"]["uuid"]] = kwargs["payload"]
-        if callback:
-            self.callbacks_list[kwargs["payload"]["uuid"]] = callback
-        else:
-            self.callbacks_list[kwargs["payload"]["uuid"]] = None
-        kwargs["payload"] = json.dumps(kwargs["payload"])
+    async def publish_action(self, node_uuid, callback=None, **kwargs):
+        if "properties" not in kwargs:
+            kwargs["properties"] = {}
+        kwargs["properties"]["content_type"] = 'application/json'
         kwargs["properties"]["reply_to"] = self.process_queue
+        kwargs["exchange_name"] = amqp_client.AMQP_EXCHANGE_ACTIONS
+        kwargs["routing_key"] = "{}{}".format(amqp_client.AMQP_KEY_ACTIONS, 
+            node_uuid
+        )
+        if callback:
+            self.actions_list[kwargs["payload"]["action_uuid"]] = kwargs["payload"]
+            self.callbacks_list[kwargs["payload"]["action_uuid"]] = callback
+        kwargs["payload"] = json.dumps(kwargs["payload"])
+        
         await self.publish_msg(**kwargs)
         
-    async def on_message(self, channel, body, envelope, properties):
+    async def action_callback(self, channel, body, envelope, properties):
+        try:
+            payload = json.loads(body.decode("utf-8"))
+            if "action_uuid" in payload :
+                if payload["action_uuid"] in self.actions_list:
+                    callback = self.callbacks_list[payload["action_uuid"]]
+                    if callback is not None:
+                        await callback(payload, 
+                            self.actions_list[payload["action_uuid"]]
+                        )
+                    del self.callbacks_list[payload["action_uuid"]]
+                    del self.actions_list[payload["action_uuid"]]
+        except:
+            traceback.print_exc()
+                
+    async def heartbeat_callback(self, channel, body, envelope, properties):
         payload = json.loads(body.decode("utf-8"))
-        if "uuid" in payload :
-            if payload["uuid"] in self.actions_list:
-                callback = self.callbacks_list[payload["uuid"]]
-                if callback is not None:
-                    await callback(payload, 
-                        self.actions_list[payload["uuid"]]
+        reload_agent = False
+        
+        #The agent is unknown, not registered yet, register and mark for kill
+        if not self.data_store.has(payload["node_uuid"]):
+            agent_obj = agent.Agent(**payload)
+            self.data_store.add(agent_obj)
+            agent_obj.runtime_id = None
+            agent_obj.previous_runtime_id = payload["runtime_id"]
+            logging.info("Agent {} registered".format(payload["node_uuid"]))
+        
+        else:
+            agent_obj = self.data_store.get(payload["node_uuid"])
+            
+            #The agent is restarting after a kill
+            if agent_obj.runtime_id is None:
+                #If the runtime_id has changed, the agent has restarted, then
+                #update the addresses and reload the conf
+                if payload["runtime_id"] != agent_obj.previous_runtime_id:
+                    agent_obj.runtime_id = payload["runtime_id"]
+                    logging.info("Agent {} restarted".format(payload["node_uuid"]))
+                    agent_obj.addresses = payload["addresses"]
+                    self.data_store.updatekeys(agent_obj)
+                    #Reload
+            
+            # The runtime_id has changed unexpectedly, mark for kill
+            elif ( agent_obj.runtime_id != payload["runtime_id"] ):
+                agent_obj.loading.clear()
+                agent_obj.previous_runtime_id = payload["runtime_id"]
+                agent_obj.runtime_id = None
+                logging.info(
+                    "Agent {} restarted unexpectedly, killing it".format(
+                        payload["node_uuid"]
                     )
-                del self.callbacks_list[payload["uuid"]]
-                del self.actions_list[payload["uuid"]]
+                )
+            
+            # The agent keeps running normally, check for addresses updates
+            else:
+                if agent_obj.addresses != payload["addresses"]:
+                    agent_obj.addresses = payload["addresses"]
+                    self.data_store.updatekeys(agent_obj)
+        
+        #If the agent was marked for kill, then send kill command
+        if agent_obj.runtime_id is None:
+            payload_uuid = str(uuid.uuid4())
+            payload = {"action_uuid":payload_uuid, "operation":"Die"}
+            await self.publish_action(payload=payload, 
+                node_uuid = agent_obj.node_uuid
+            )
+
+        

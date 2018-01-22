@@ -5,7 +5,10 @@ import asyncio
 import logging.config
 import logging
 import queue_manager
-import heartbeat_manager
+import pyroute_utils
+import random
+import amqp_agent
+import json
 
 class Input_error(Exception):
     pass
@@ -42,8 +45,33 @@ def get_filename(config, section, file):
             raise Input_error(filename + " does not exist")
         
         return filename_tmp
+        
+class Agent(object):
+    def __init__(self, self_id, addresses, iproute):
+        self.self_id = self_id
+        self.addresses = addresses
+        self.iproute = iproute
+        self.update_runtime_id()
+        
+    def update_runtime_id(self):
+        self.runtime_id = random.randint(1,amqp_client.MAX_KEY)
+        heartbeat_payload = { "node_uuid": self.self_id,
+            "addresses":list(self.addresses),
+            "runtime_id":self.runtime_id
+        }
+        self.heartbeat_payload_str = json.dumps(heartbeat_payload)
+        
+    def update_addresses(self, addresses):
+        self.addresses = addresses
+        heartbeat_payload = { "node_uuid": self.self_id,
+            "addresses":list(self.addresses),
+            "runtime_id":self.runtime_id
+        }
+        self.heartbeat_payload_str = json.dumps(heartbeat_payload)
+        
+        
 
-def init_controller(argv):
+def init_agent(argv):
     cli_error_str = "agent.py -c <configuration file>"
     configuration_file = None
     asyncio_loop = asyncio.get_event_loop()
@@ -92,6 +120,7 @@ def init_controller(argv):
 
     self_id = config.get('DEFAULT', "agent_id")
     
+    #Get the AMQP configuration
     amqp_auth = {}
     amqp_auth["host"] = config.get('amqp', 'host')
     amqp_auth["login"] = config.get('amqp', 'login')
@@ -102,13 +131,29 @@ def init_controller(argv):
     amqp_auth["bind_action_queue"] = True
     amqp_auth["heartbeat_receive_key"] = amqp_client.AMQP_KEY_HEARTBEATS_CTRL
     
-    queue_manager_obj = queue_manager.Queue_manager()
-    heartbeat_manager_obj = heartbeat_manager.Heartbeat_manager()
-    amqp_auth["action_callback"] = queue_manager_obj.add_msg_to_queue
-    amqp_auth["heartbeat_callback"] = heartbeat_manager_obj.heartbeat_callback
+    #Get the IP addresses
+    iproute = pyroute_utils.createIpr()
+    addresses = set()
+    interfaces = config.get('DEFAULT', 'public_interface')
+    if interfaces.find(",") >= 0:
+        interfaces_list = interfaces.split(",")
+    else:
+        interfaces_list = [interfaces]
+    for interface in interfaces_list:
+        addresses.update(pyroute_utils.getInterfaceIP(iproute, interface))
+    agent = Agent(self_id, addresses, iproute)
     
-    amqp_client_obj = amqp_client.Amqp_client(self_id,**amqp_auth)
+    queue_manager_obj = queue_manager.Queue_manager(agent)
+    amqp_auth["action_callback"] = queue_manager_obj.add_msg_to_queue
+    
+    amqp_client_obj = amqp_agent.Amqp_agent(agent = agent, node_uuid = self_id,
+        **amqp_auth
+    )
     queue_manager_obj.set_amqp(amqp_client_obj)
+    
+    
+    
+    # Start running
     asyncio_loop.run_until_complete(amqp_client_obj.connect())
     asyncio.ensure_future(amqp_client_obj.send_heartbeat("{}{}".format(
         amqp_client.AMQP_KEY_HEARTBEATS_AGENTS, self_id)))
@@ -123,4 +168,4 @@ def init_controller(argv):
         asyncio.get_event_loop().close()
 
 if __name__ == "__main__":
-   init_controller(sys.argv[1:])
+   init_agent(sys.argv[1:])

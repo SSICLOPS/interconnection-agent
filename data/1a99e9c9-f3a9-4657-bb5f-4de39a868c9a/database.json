@@ -1,0 +1,1 @@
+{"ike_policies": [{"auth_algorithm": "sha1", "ike_version": "ikev2", "lifetime_value": "3600", "node_id": "59a0c617-0049-40c8-bec3-720e39a3f1a4", "pfs": "modp1536", "name": "ike1", "encryption_algorithm": "aes256"}]}

@@ -113,7 +113,11 @@ def init_controller(argv):
         json_filename = config.get('json_backend', 'filename')
         storage_backend_obj = storage_backend_json.Storage_backend_json(
             json_filename)
-        data_store = data_container.Data_container(storage_backend_obj, "all")
+        data_store = data_container.Data_container(storage_backend_obj, 
+            "overwrite"
+        )
+        
+    data_store.restore()
     
     amqp_auth = {}
     amqp_auth["host"] = config.get('amqp', 'host')
@@ -130,7 +134,9 @@ def init_controller(argv):
     rest_address = config.get('rest_api', 'address')
     rest_port = config.get('rest_api', 'port')
     
-    amqp_client_obj = amqp_controller.Amqp_controller(cloud_id,**amqp_auth)
+    amqp_client_obj = amqp_controller.Amqp_controller(data_store = data_store, 
+        node_uuid=cloud_id,**amqp_auth
+    )
     asyncio_loop.run_until_complete(amqp_client_obj.connect())
     asyncio_loop.run_until_complete(rest_server.build_server(asyncio_loop, 
         rest_address, rest_port, data_store, amqp_client_obj

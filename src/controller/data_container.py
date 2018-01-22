@@ -1,5 +1,11 @@
 from helpers_n_wrappers import container3
+import logging
+from ipsec import ike_policy
 
+KEY_IN_USE = "KEY_IN_USE"
+KEY_AGENT = "KEY_AGENT"
+KEY_AGENT_IP = "KEY_AGENT_IP"
+KEY_POLICY_IKE = "KEY_POLICY_IKE"
 
 _type_name_eq = {
 #    "tunnels" :     {"node_schema": Interco_schema,
@@ -10,8 +16,8 @@ _type_name_eq = {
 #        "node_key": KEY_CONNECTION,"node_type_name": "connections"},
 #    "links" :       {"node_schema": Link_schema, 
 #        "node_key": KEY_LINK,"node_type_name": "links"},
-#    "ike_policies" :     {"node_schema": Ike_schema, 
-#        "node_key": KEY_POLICY_IKE,"node_type_name": "ike_policies"},
+    "ike_policies" :     {"node_schema": ike_policy.Ike_policy_schema, 
+        "node_key": KEY_POLICY_IKE,"node_type_name": "ike_policies"},
 #    "ipsec_policies" :   {"node_schema": Ipsec_schema, 
 #        "node_key": KEY_POLICY_IPSEC,"node_type_name": "ipsec_policies"},
 #    "netPeers" :       {"node_schema": Net_peer_schema, 
@@ -22,15 +28,15 @@ _type_name_eq = {
 #        "node_key": KEY_POLICY,"node_type_name": "policies"}
 }
 _type_eq = {
-#    "Peer_cloud" :     self.type_name_eq["tunnels"],
-#    "Expanded_net" :   self.type_name_eq["networks"],
-#    "Vpn_connection" : self.type_name_eq["connections"],
-#    "Vpn_link" :       self.type_name_eq["links"],
-#    "Ike_policy" :     self.type_name_eq["ike_policies"],
-#    "Ipsec_policy" :   self.type_name_eq["ipsec_policies"],
-#    "Net_peer" :       self.type_name_eq["netPeers"],
-#    "Mptcp_proxy" :    self.type_name_eq["mptcpProxies"],
-#    "Policy" :        self.type_name_eq["policies"],
+#    "Peer_cloud" :     _type_name_eq["tunnels"],
+#    "Expanded_net" :   _type_name_eq["networks"],
+#    "Vpn_connection" : _type_name_eq["connections"],
+#    "Vpn_link" :       _type_name_eq["links"],
+    "Ike_policy" :     _type_name_eq["ike_policies"],
+#    "Ipsec_policy" :   _type_name_eq["ipsec_policies"],
+#    "Net_peer" :       _type_name_eq["netPeers"],
+#    "Mptcp_proxy" :    _type_name_eq["mptcpProxies"],
+#    "Policy" :         _type_name_eq["policies"],
 }
 
 class Data_container(container3.Container):
@@ -40,12 +46,14 @@ class Data_container(container3.Container):
         self.store = backend
         # The mode is for the type of dump done to save data
         # either "node" if you want to save a single node, for example for Mysql
-        # or "all" if you want to dump everything everytime there is a change to
-        # save everything at once.
+        # or "overwrite" if you want to dump everything everytime there is a 
+        # change to save everything at once.
         if mode == "node":
             self._dump = self._dump_node
-        elif mode == "all":
+            self._delete = self.store.delete
+        elif mode == "overwrite":
             self._dump = self._dump_all
+            self._delete = self.save
 
 
     def lookup_list(self, key, update=True, check_expire=True):
@@ -69,6 +77,12 @@ class Data_container(container3.Container):
         # The dump methods should return a dictionary with the type of object
         # as keys and the list of dictionaries containing the objects attributes
         # as value
+        
+    def _delete(self, node_id = None):
+        # This is an internal function overridden in __init__ based on 
+        # backend type
+        pass
+        
 
     def _dump_all(self, node_id):
         ret = {}
@@ -80,8 +94,8 @@ class Data_container(container3.Container):
             nodes = self.lookup_list(node_key, False, False)
             
             #Create a list of dictionaries with the nodes attributes
-            ret[node_type_name] = node_schema().dump(nodes, many=True)
-        
+            ret[node_type_name] = node_schema().dump(nodes, many=True).data
+        logging.debug("{}".format(ret))
         return ret
         
     
@@ -107,15 +121,20 @@ class Data_container(container3.Container):
         # For each type of node, find the Marshmallow schema and use it to load
         # the nodes. 
         for node_type in nodes_data:
-            type_schema = _type_name_eq[node_type]["node_schema"]
-            objects.append(type_schema(many=True).load(nodes_data[node_type]))
+            type_schema = _type_name_eq[node_type]["node_schema"](many=True)
+            objects.append(type_schema.load(nodes_data[node_type]).data)
         
+        logging.debug("{}".format(objects))
         #For all nodes loaded, add them to the container
-        for node in objects:
-            self.add(node)
+        for nodes in objects:
+            for node in nodes:
+                self.add(node)
             
     def save(self, node_id):
         self.store.save(self._dump(node_id))
+        
+    def delete(self, node_id):
+        self._delete(node_id)
         
     def restore(self):
         self.load_nodes(self.store.load())

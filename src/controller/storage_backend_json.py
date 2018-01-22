@@ -6,9 +6,9 @@ class Storage_backend_json(object):
         self.filename = filename
 
     def save(self, data):
-        with open(filename, "w") as file:
+        with open(self.filename, "w") as file:
             json.dump(data, file)
 
     def load(self):
-        with open(filename, "r") as file:
+        with open(self.filename, "r") as file:
             return json.load(file)
