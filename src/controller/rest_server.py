@@ -1,6 +1,5 @@
 from aiohttp import web
 import json
-import utils
 import logging
 import models
 import traceback

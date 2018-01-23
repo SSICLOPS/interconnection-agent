@@ -9,6 +9,10 @@ import pyroute_utils
 import random
 import amqp_agent
 import json
+import ovs_manager
+from helpers_n_wrappers import utils3
+import traceback
+import uuid
 
 class Input_error(Exception):
     pass
@@ -47,11 +51,11 @@ def get_filename(config, section, file):
         return filename_tmp
         
 class Agent(object):
-    def __init__(self, self_id, addresses, iproute):
-        self.self_id = self_id
-        self.addresses = addresses
-        self.iproute = iproute
+    def __init__(self, **kwargs):
+        utils3.set_attributes(self, override = True, **kwargs)
         self.update_runtime_id()
+        self.tunnels_port_ids = {}
+        self.tunnels = {}
         
     def update_runtime_id(self):
         self.runtime_id = random.randint(1,amqp_client.MAX_KEY)
@@ -69,8 +73,31 @@ class Agent(object):
         }
         self.heartbeat_payload_str = json.dumps(heartbeat_payload)
         
-        
-
+    def add_tunnel(self, **kwargs):
+        try:
+            port_name = "cl-{}".format(str(uuid.uuid4())[:8])
+            port_name, port_id = self.ovs_manager.add_tun_port(port_name, 
+                kwargs["self_ip"], kwargs["peer_ip"], kwargs["type"]
+            )
+            if kwargs["peer_vni"] in self.tunnels_port_ids :
+                self.tunnels_port_ids[kwargs["peer_vni"]].append(port_id)
+            else:
+                self.tunnels_port_ids[kwargs["peer_vni"]] = [port_id]
+            kwargs["port_name"] = port_name
+            kwargs["port_id"] = port_id
+            self.tunnels[kwargs["node_id"]] = kwargs
+        except:
+            traceback.print_exc()
+            
+    def del_tunnel(self, **kwargs):
+        port_name = self.tunnels[kwargs["node_id"]]["port_name"]
+        port_id = self.tunnels[kwargs["node_id"]]["port_id"]
+        self.ovs_manager.del_tun_port(port_name, kwargs["self_ip"], 
+            kwargs["peer_ip"], kwargs["type"]
+        )
+        self.tunnels_port_ids[kwargs["peer_vni"]].remove(port_id)
+        del self.tunnels[kwargs["node_id"]]
+            
 def init_agent(argv):
     cli_error_str = "agent.py -c <configuration file>"
     configuration_file = None
@@ -119,6 +146,7 @@ def init_agent(argv):
         config, vpn_backend, "template_secrets_file")
 
     self_id = config.get('DEFAULT', "agent_id")
+    standalone = config.getboolean("DEFAULT", "standalone")
     
     #Get the AMQP configuration
     amqp_auth = {}
@@ -131,6 +159,16 @@ def init_agent(argv):
     amqp_auth["bind_action_queue"] = True
     amqp_auth["heartbeat_receive_key"] = amqp_client.AMQP_KEY_HEARTBEATS_CTRL
     
+    ovs_arch = {}
+    ovs_arch["interco_bridge"] = config.get('ovs', 'lan_bridge')
+    ovs_arch["tunnels_bridge"] = config.get('ovs', 'wan_bridge')
+    ovs_arch["interco_out_bridge"] = config.get('ovs', 'tun_bridge')
+    ovs_arch["internal_bridge"] = config.get('ovs', 'internal_bridge')
+    ovs_arch["standalone"] = standalone
+            
+    ovs_manager_obj = ovs_manager.Ovs_manager(**ovs_arch)
+    ovs_manager_obj.set_infra()
+    
     #Get the IP addresses
     iproute = pyroute_utils.createIpr()
     addresses = set()
@@ -141,7 +179,11 @@ def init_agent(argv):
         interfaces_list = [interfaces]
     for interface in interfaces_list:
         addresses.update(pyroute_utils.getInterfaceIP(iproute, interface))
-    agent = Agent(self_id, addresses, iproute)
+    
+    
+    agent = Agent(self_id = self_id, addresses = addresses, iproute = iproute, 
+        standalone = standalone, ovs_manager = ovs_manager_obj
+    )
     
     queue_manager_obj = queue_manager.Queue_manager(agent)
     amqp_auth["action_callback"] = queue_manager_obj.add_msg_to_queue

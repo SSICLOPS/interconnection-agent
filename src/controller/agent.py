@@ -1,5 +1,5 @@
 from helpers_n_wrappers import container3, utils3
-import data_container
+import utils
 import asyncio
 
 class Agent(container3.ContainerNode):
@@ -10,11 +10,11 @@ class Agent(container3.ContainerNode):
 
     def lookupkeys(self):
         keys = []
-        keys.append((data_container.KEY_AGENT, False))
-        keys.append(((data_container.KEY_AGENT, self.node_uuid), True))
+        keys.append((utils.KEY_AGENT, False))
+        keys.append(((utils.KEY_AGENT, self.node_uuid), True))
         keys.append((self.node_uuid, True))
         for address in self.addresses:
-            keys.append(((data_container.KEY_AGENT, data_container.KEY_AGENT_IP, 
+            keys.append(((utils.KEY_AGENT, utils.KEY_AGENT_IP, 
                 address
             ), True))
         return keys

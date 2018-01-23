@@ -1,15 +1,16 @@
 from helpers_n_wrappers import container3
 import logging
-from ipsec import ike_policy
+from ipsec import ike_policy, ipsec_policy
+from tunneling import l2_tunnel
+import sys
 
-KEY_IN_USE = "KEY_IN_USE"
-KEY_AGENT = "KEY_AGENT"
-KEY_AGENT_IP = "KEY_AGENT_IP"
-KEY_POLICY_IKE = "KEY_POLICY_IKE"
+import utils
+
+
 
 _type_name_eq = {
-#    "tunnels" :     {"node_schema": Interco_schema,
-#        "node_key": KEY_PEER_CLOUD,"node_type_name": "tunnels"},
+    "tunnels" :     {"node_schema": l2_tunnel.L2_tunnel_schema,
+        "node_key": utils.KEY_L2_TUNNEL, "node_type_name": "tunnels"},
 #    "networks" :   {"node_schema": Network_schema, 
 #        "node_key": KEY_NET,"node_type_name": "networks"},
 #    "connections" : {"node_schema": Connection_schema, 
@@ -17,9 +18,9 @@ _type_name_eq = {
 #    "links" :       {"node_schema": Link_schema, 
 #        "node_key": KEY_LINK,"node_type_name": "links"},
     "ike_policies" :     {"node_schema": ike_policy.Ike_policy_schema, 
-        "node_key": KEY_POLICY_IKE,"node_type_name": "ike_policies"},
-#    "ipsec_policies" :   {"node_schema": Ipsec_schema, 
-#        "node_key": KEY_POLICY_IPSEC,"node_type_name": "ipsec_policies"},
+        "node_key": utils.KEY_POLICY_IKE,"node_type_name": "ike_policies"},
+    "ipsec_policies" :   {"node_schema": ipsec_policy.Ipsec_policy_schema, 
+        "node_key": utils.KEY_POLICY_IPSEC,"node_type_name": "ipsec_policies"},
 #    "netPeers" :       {"node_schema": Net_peer_schema, 
 #        "node_key": KEY_NETPEER,"node_type_name": "netPeers"},
 #    "mptcpProxies" :    {"node_schema": Mptcp_proxy_schema, 
@@ -28,16 +29,18 @@ _type_name_eq = {
 #        "node_key": KEY_POLICY,"node_type_name": "policies"}
 }
 _type_eq = {
-#    "Peer_cloud" :     _type_name_eq["tunnels"],
+    "L2_tunnel" :      _type_name_eq["tunnels"],
 #    "Expanded_net" :   _type_name_eq["networks"],
 #    "Vpn_connection" : _type_name_eq["connections"],
 #    "Vpn_link" :       _type_name_eq["links"],
     "Ike_policy" :     _type_name_eq["ike_policies"],
-#    "Ipsec_policy" :   _type_name_eq["ipsec_policies"],
+    "Ipsec_policy" :   _type_name_eq["ipsec_policies"],
 #    "Net_peer" :       _type_name_eq["netPeers"],
 #    "Mptcp_proxy" :    _type_name_eq["mptcpProxies"],
 #    "Policy" :         _type_name_eq["policies"],
 }
+
+
 
 class Data_container(container3.Container):
 
@@ -66,7 +69,7 @@ class Data_container(container3.Container):
         
         # A single element was returned
         if not isinstance(ret, set):
-            return set(ret)
+            return {ret}
         
         return ret
     
@@ -95,7 +98,6 @@ class Data_container(container3.Container):
             
             #Create a list of dictionaries with the nodes attributes
             ret[node_type_name] = node_schema().dump(nodes, many=True).data
-        logging.debug("{}".format(ret))
         return ret
         
     
@@ -122,13 +124,24 @@ class Data_container(container3.Container):
         # the nodes. 
         for node_type in nodes_data:
             type_schema = _type_name_eq[node_type]["node_schema"](many=True)
-            objects.append(type_schema.load(nodes_data[node_type]).data)
+            data, errors = type_schema.load(nodes_data[node_type])
+            if errors:
+                logging.error("Error while loading {} data : {}".format(
+                    node_type, errors
+                ))
+                sys.exit()
+            objects.append(data)
         
-        logging.debug("{}".format(objects))
         #For all nodes loaded, add them to the container
         for nodes in objects:
             for node in nodes:
-                self.add(node)
+                try:
+                    self.add(node)
+                except Exception as e:
+                    logging.error("Error while loading node {} : {}".format(
+                    node.node_id, e.args
+                    ))
+                    sys.exit()
             
     def save(self, node_id):
         self.store.save(self._dump(node_id))

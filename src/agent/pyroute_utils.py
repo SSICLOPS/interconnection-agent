@@ -179,29 +179,6 @@ class InterfaceNotFound(Exception):
     pass
 
 
-def getOVSVersion():
-    output = utils.execute("ovs-vsctl --version")
-    if output:
-        return parse.parse(
-            "ovs-vsctl (Open vSwitch) {}.{}.{}", output.split("\n")[0])
-    else:
-        exit()
-
-
-def getLinuxVersion():
-    return parse.parse("{}.{}.{}", platform.release().split("-")[0])
-
-
-def checkGeneve():
-    # TODO try to load the module instead because of custom kernels or create
-    # port
-    ovs = getOVSVersion()
-    linux = getLinuxVersion()
-    if (ovs[0] == 2 and ovs[1] >= 5) or (
-            linux[0] == 3 and linux[1] >= 18) or (linux[0] > 3):
-        return True
-    else:
-        return False
 
 
 def tc_add_qdisc(ipr, nic, kind, handle, *args, **kwargs):

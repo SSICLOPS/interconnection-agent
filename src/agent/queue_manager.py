@@ -5,6 +5,7 @@ from common import amqp_client
 import traceback
 import actions_interface
 from helpers_n_wrappers import utils3
+import sys
 
 class Queue_manager(object):
 
@@ -39,14 +40,20 @@ class Queue_manager(object):
                     element["args"] = []
                 if "kwargs" not in element:
                     element["kwargs"] = {}
-                await action_func(*element["args"],**element["kwargs"])
+                resp = await action_func(self.agent, *element["args"],**element["kwargs"])
+                if resp:
+                    action_ack = "Ack"
+                else:
+                    action_ack = "Nack"
                 await self.amqp.publish_msg(payload=json.dumps(
-                        {"action_uuid":action_uuid,"operation":"ack"}
+                        {"action_uuid":action_uuid,"operation":action_ack}
                     ),
                     properties = {"content_type":'application/json'},
                     exchange_name='',
                     routing_key=element["reply-to"]
                 )
                 self.action_queue.task_done()
+            except SystemExit:
+                sys.exit()
             except:
                 traceback.print_exc()

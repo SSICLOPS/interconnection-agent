@@ -2,15 +2,16 @@ import data_container
 import uuid
 import logging
 from aiohttp import web
+import utils
 
-from ipsec import ike_policy
+from ipsec import ike_policy, ipsec_policy
+from tunneling import l2_tunnel
 
 async def test_callback(**kwargs):
     for agent_amqp in kwargs["data_store"].lookup_list(data_container.KEY_AGENT,
         False, False
     ):
-        payload_uuid = str(uuid.uuid4())
-        payload = {"action_uuid":payload_uuid, "operation":"No-op"}
+        payload = {"operation":utils.ACTION_NO_OP}
         await kwargs["amqp"].publish_action(payload=payload, 
             node_uuid = agent_amqp.node_uuid, callback = ack_callback,
         )
@@ -39,5 +40,39 @@ api_mappings = [
         "required_args" : ["name", "ike_version", 
             "encryption_algorithm", "auth_algorithm", "pfs", "lifetime_value"
         ], "opt_args" : []
+    },
+    {"method":"GET", "endpoint":"/ipsec", "callback":ipsec_policy.get_ipsec_policies, 
+        "url_args": [], "required_args" : [], "opt_args" : []
+    },
+    {"method":"GET", "endpoint":"/ipsec/{node_id}", 
+        "callback":ipsec_policy.get_ipsec_policies, "url_args": ["node_id"], 
+        "required_args" : [], "opt_args" : []
+    },
+    {"method":"DELETE", "endpoint":"/ipsec/{node_id}", 
+        "callback":ipsec_policy.delete_ipsec_policy, "url_args": ["node_id"], 
+        "required_args" : [], "opt_args" : []
+    },
+    {"method":"POST", "endpoint":"/ipsec", 
+        "callback":ipsec_policy.create_ipsec_policy, "url_args": [], 
+        "required_args" : ["name", "transform_protocol", "encapsulation_mode",
+            "encryption_algorithm", "auth_algorithm", "pfs", "lifetime_value"
+        ], "opt_args" : []
+    },
+    {"method":"GET", "endpoint":"/tunnel", "callback":l2_tunnel.get_l2_tunnels, 
+        "url_args": [], "required_args" : [], "opt_args" : []
+    },
+    {"method":"GET", "endpoint":"/tunnel/{node_id}", 
+        "callback":l2_tunnel.get_l2_tunnels, "url_args": ["node_id"], 
+        "required_args" : [], "opt_args" : []
+    },
+    {"method":"DELETE", "endpoint":"/tunnel/{node_id}", 
+        "callback":l2_tunnel.delete_l2_tunnel, "url_args": ["node_id"], 
+        "required_args" : [], "opt_args" : []
+    },
+    {"method":"POST", "endpoint":"/tunnel", 
+        "callback":l2_tunnel.create_l2_tunnel, "url_args": [], 
+        "required_args" : ["name", "self_ip", "peer_id", "peer_ip", 
+            "type", "mtu", "enabled"
+        ], "opt_args" : ["peer_public_ip"]
     },
 ]

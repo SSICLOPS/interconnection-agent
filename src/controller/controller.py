@@ -110,7 +110,7 @@ def init_controller(argv):
         raise models.Input_error("The given storage backend is not supported.")
     
     if storage_backend == "json":
-        json_filename = config.get('json_backend', 'filename')
+        json_filename = get_filename(config, 'json_backend', 'filename')
         storage_backend_obj = storage_backend_json.Storage_backend_json(
             json_filename)
         data_store = data_container.Data_container(storage_backend_obj, 

@@ -4,6 +4,8 @@ import traceback
 import logging
 import agent
 import uuid
+import utils
+from tunneling import l2_tunnel
 
 class Amqp_controller(amqp_client.Amqp_client):
 
@@ -16,6 +18,8 @@ class Amqp_controller(amqp_client.Amqp_client):
     async def publish_action(self, node_uuid, callback=None, **kwargs):
         if "properties" not in kwargs:
             kwargs["properties"] = {}
+        action_uuid = str(uuid.uuid4())
+        kwargs["payload"]["action_uuid"] = action_uuid
         kwargs["properties"]["content_type"] = 'application/json'
         kwargs["properties"]["reply_to"] = self.process_queue
         kwargs["exchange_name"] = amqp_client.AMQP_EXCHANGE_ACTIONS
@@ -23,8 +27,8 @@ class Amqp_controller(amqp_client.Amqp_client):
             node_uuid
         )
         if callback:
-            self.actions_list[kwargs["payload"]["action_uuid"]] = kwargs["payload"]
-            self.callbacks_list[kwargs["payload"]["action_uuid"]] = callback
+            self.actions_list[action_uuid] = kwargs["payload"]
+            self.callbacks_list[action_uuid] = callback
         kwargs["payload"] = json.dumps(kwargs["payload"])
         
         await self.publish_msg(**kwargs)
@@ -68,7 +72,10 @@ class Amqp_controller(amqp_client.Amqp_client):
                     logging.info("Agent {} restarted".format(payload["node_uuid"]))
                     agent_obj.addresses = payload["addresses"]
                     self.data_store.updatekeys(agent_obj)
-                    #Reload
+                    try:
+                        await self.reload(agent_obj)
+                    except:
+                        traceback.print_exc()
             
             # The runtime_id has changed unexpectedly, mark for kill
             elif ( agent_obj.runtime_id != payload["runtime_id"] ):
@@ -89,10 +96,18 @@ class Amqp_controller(amqp_client.Amqp_client):
         
         #If the agent was marked for kill, then send kill command
         if agent_obj.runtime_id is None:
-            payload_uuid = str(uuid.uuid4())
-            payload = {"action_uuid":payload_uuid, "operation":"Die"}
+            payload = {"operation":utils.ACTION_DIE}
             await self.publish_action(payload=payload, 
                 node_uuid = agent_obj.node_uuid
             )
 
-        
+    async def reload(self, agent_obj):
+        tunnels = []
+        for address in agent_obj.addresses:
+            tunnels.extend(self.data_store.lookup_list((utils.KEY_L2_TUNNEL, 
+                    utils.KEY_L2_TUNNEL_IP, address
+                ), False, False
+            ))
+        logging.debug("Applying : {}".format(tunnels))
+        for tunnel in tunnels:
+            await l2_tunnel.send_create_tunnel(self.data_store, self, tunnel)
