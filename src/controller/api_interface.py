@@ -4,7 +4,7 @@ import logging
 from aiohttp import web
 import utils
 
-from ipsec import ike_policy, ipsec_policy
+from ipsec import ike_policy, ipsec_policy, vpn_connection
 from tunneling import l2_tunnel
 
 async def test_callback(**kwargs):
@@ -24,6 +24,7 @@ api_mappings = [
     {"method":"GET", "endpoint":"/test", "callback":test_callback, 
         "url_args": [], "required_args" : [], "opt_args" : []
     },
+    
     {"method":"GET", "endpoint":"/ike", "callback":ike_policy.get_ike_policies, 
         "url_args": [], "required_args" : [], "opt_args" : []
     },
@@ -39,8 +40,9 @@ api_mappings = [
         "callback":ike_policy.create_ike_policy, "url_args": [], 
         "required_args" : ["name", "ike_version", 
             "encryption_algorithm", "auth_algorithm", "pfs", "lifetime_value"
-        ], "opt_args" : []
+        ], "opt_args" : ["node_id"]
     },
+    
     {"method":"GET", "endpoint":"/ipsec", "callback":ipsec_policy.get_ipsec_policies, 
         "url_args": [], "required_args" : [], "opt_args" : []
     },
@@ -56,8 +58,9 @@ api_mappings = [
         "callback":ipsec_policy.create_ipsec_policy, "url_args": [], 
         "required_args" : ["name", "transform_protocol", "encapsulation_mode",
             "encryption_algorithm", "auth_algorithm", "pfs", "lifetime_value"
-        ], "opt_args" : []
+        ], "opt_args" : ["node_id"]
     },
+    
     {"method":"GET", "endpoint":"/tunnel", "callback":l2_tunnel.get_l2_tunnels, 
         "url_args": [], "required_args" : [], "opt_args" : []
     },
@@ -73,6 +76,27 @@ api_mappings = [
         "callback":l2_tunnel.create_l2_tunnel, "url_args": [], 
         "required_args" : ["name", "self_ip", "peer_id", "peer_ip", 
             "type", "mtu", "enabled"
-        ], "opt_args" : ["peer_public_ip"]
+        ], "opt_args" : ["peer_public_ip", "node_id"]
+    },
+    
+    {"method":"GET", "endpoint":"/connection", 
+        "callback":vpn_connection.get_vpn_connections, 
+        "url_args": [], "required_args" : [], "opt_args" : []
+    },
+    {"method":"GET", "endpoint":"/connection/{node_id}", 
+        "callback":vpn_connection.get_vpn_connections, "url_args": ["node_id"], 
+        "required_args" : [], "opt_args" : []
+    },
+    {"method":"DELETE", "endpoint":"/connection/{node_id}", 
+        "callback":vpn_connection.delete_vpn_connection, "url_args": ["node_id"], 
+        "required_args" : [], "opt_args" : []
+    },
+    {"method":"POST", "endpoint":"/connection", 
+        "callback":vpn_connection.create_vpn_connection, "url_args": [], 
+        "required_args" : ["name", "tunnel_id", "ike_policy_id", 
+            "ipsec_policy_id", "dpd_action", "dpd_interval", "dpd_timeout", 
+            "initiator", "secret"
+        ], "opt_args" : ["node_id"]
     },
 ]
+

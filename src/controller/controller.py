@@ -9,6 +9,7 @@ import logging.config
 import logging
 import storage_backend_json
 import data_container
+import utils
 
 
 def get_filename(config, section, file):
@@ -116,7 +117,7 @@ def init_controller(argv):
         data_store = data_container.Data_container(storage_backend_obj, 
             "overwrite"
         )
-        
+    utils.data_store_validator.add_data_store(data_store) 
     data_store.restore()
     
     amqp_auth = {}

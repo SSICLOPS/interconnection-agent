@@ -6,6 +6,7 @@ import agent
 import uuid
 import utils
 from tunneling import l2_tunnel
+from ipsec import vpn_connection
 
 class Amqp_controller(amqp_client.Amqp_client):
 
@@ -103,6 +104,7 @@ class Amqp_controller(amqp_client.Amqp_client):
 
     async def reload(self, agent_obj):
         tunnels = []
+        connections = []
         for address in agent_obj.addresses:
             tunnels.extend(self.data_store.lookup_list((utils.KEY_L2_TUNNEL, 
                     utils.KEY_L2_TUNNEL_IP, address
@@ -111,3 +113,11 @@ class Amqp_controller(amqp_client.Amqp_client):
         logging.debug("Applying : {}".format(tunnels))
         for tunnel in tunnels:
             await l2_tunnel.send_create_tunnel(self.data_store, self, tunnel)
+            connections.extend(self.data_store.lookup_list((utils.KEY_IN_USE, 
+                    tunnel.node_id
+                ), False, False
+            ))
+        for connection in connections:
+            await vpn_connection.send_create_connection(self.data_store, self, 
+                connection
+            )

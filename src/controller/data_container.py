@@ -1,20 +1,21 @@
 from helpers_n_wrappers import container3
 import logging
-from ipsec import ike_policy, ipsec_policy
+from ipsec import ike_policy, ipsec_policy, vpn_connection
 from tunneling import l2_tunnel
 import sys
 
 import utils
 
 
+_restores = ["ike_policies", "ipsec_policies", "tunnels", "connections"]
 
 _type_name_eq = {
     "tunnels" :     {"node_schema": l2_tunnel.L2_tunnel_schema,
         "node_key": utils.KEY_L2_TUNNEL, "node_type_name": "tunnels"},
 #    "networks" :   {"node_schema": Network_schema, 
 #        "node_key": KEY_NET,"node_type_name": "networks"},
-#    "connections" : {"node_schema": Connection_schema, 
-#        "node_key": KEY_CONNECTION,"node_type_name": "connections"},
+    "connections" : {"node_schema": vpn_connection.Vpn_connection_schema, 
+        "node_key": utils.KEY_CONNECTION,"node_type_name": "connections"},
 #    "links" :       {"node_schema": Link_schema, 
 #        "node_key": KEY_LINK,"node_type_name": "links"},
     "ike_policies" :     {"node_schema": ike_policy.Ike_policy_schema, 
@@ -31,7 +32,7 @@ _type_name_eq = {
 _type_eq = {
     "L2_tunnel" :      _type_name_eq["tunnels"],
 #    "Expanded_net" :   _type_name_eq["networks"],
-#    "Vpn_connection" : _type_name_eq["connections"],
+    "Vpn_connection" : _type_name_eq["connections"],
 #    "Vpn_link" :       _type_name_eq["links"],
     "Ike_policy" :     _type_name_eq["ike_policies"],
     "Ipsec_policy" :   _type_name_eq["ipsec_policies"],
@@ -122,7 +123,9 @@ class Data_container(container3.Container):
         
         # For each type of node, find the Marshmallow schema and use it to load
         # the nodes. 
-        for node_type in nodes_data:
+        for node_type in _restores:
+            if node_type not in nodes_data:
+                continue
             type_schema = _type_name_eq[node_type]["node_schema"](many=True)
             data, errors = type_schema.load(nodes_data[node_type])
             if errors:
@@ -132,9 +135,8 @@ class Data_container(container3.Container):
                 sys.exit()
             objects.append(data)
         
-        #For all nodes loaded, add them to the container
-        for nodes in objects:
-            for node in nodes:
+            #For all nodes loaded, add them to the container
+            for node in data:
                 try:
                     self.add(node)
                 except Exception as e:

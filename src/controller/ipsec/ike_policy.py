@@ -51,7 +51,7 @@ async def get_ike_policies(data_store, amqp, node_id=None):
     
     schema = Ike_policy_schema()
     if node_id:
-        if not data_store.has((utils.KEY_POLICY_IKE, self.node_id)):
+        if not data_store.has((utils.KEY_POLICY_IKE, node_id)):
             raise web.HTTPNotFound(text = "Ike Policy Not Found")
         ike_policy = data_store.get(node_id)
         ike_policies_str = schema.dumps(ike_policy).data
@@ -79,7 +79,7 @@ async def create_ike_policy(data_store, amqp, **kwargs):
     
     
 async def delete_ike_policy(data_store, amqp, node_id):
-    if not data_store.has((utils.KEY_POLICY_IKE, self.node_id)):
+    if not data_store.has((utils.KEY_POLICY_IKE, node_id)):
         raise web.HTTPNotFound(text = "Ike Policy Not Found")
     if data_store.has((utils.KEY_IN_USE, node_id)):
         raise web.HTTPConflict(text = "Ike Policy in use")

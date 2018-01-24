@@ -100,8 +100,9 @@ async def send_delete_tunnel(data_store, amqp, tunnel):
     await send_action_tunnel(data_store, amqp, utils.ACTION_DEL_TUNNEL, tunnel) 
 
 async def ack_callback(payload, action):
-    logging.debug("{} completed for tunnel {}".format(
-        "Setup" if action["operation"]== utils.ACTION_ADD_TUNNEL else "Removal", 
+    logging.debug("{} completed {}successfully for tunnel {}".format(
+        "Setup" if action["operation"]== utils.ACTION_ADD_TUNNEL else "Removal",
+        "un" if payload["operation"] == utils.ACTION_NACK else "",
         action["kwargs"]["node_id"]
     ))
     

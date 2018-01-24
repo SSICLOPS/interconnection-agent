@@ -57,7 +57,7 @@ async def get_ipsec_policies(data_store, amqp, node_id=None):
     
     schema = Ipsec_policy_schema()
     if node_id:
-        if not data_store.has((utils.KEY_POLICY_IPSEC, self.node_id)):
+        if not data_store.has((utils.KEY_POLICY_IPSEC, node_id)):
             raise web.HTTPNotFound(text = "Ike Policy Not Found")
         ipsec_policy = data_store.get(node_id)
         ipsec_policies_str = schema.dumps(ipsec_policy).data
@@ -85,7 +85,7 @@ async def create_ipsec_policy(data_store, amqp, **kwargs):
     
     
 async def delete_ipsec_policy(data_store, amqp, node_id):
-    if not data_store.has((utils.KEY_POLICY_IPSEC, self.node_id)):
+    if not data_store.has((utils.KEY_POLICY_IPSEC, node_id)):
         raise web.HTTPNotFound(text = "Ipsec Policy Not Found")
     if data_store.has((utils.KEY_IN_USE, node_id)):
         raise web.HTTPConflict(text = "Ipsec Policy in use")
