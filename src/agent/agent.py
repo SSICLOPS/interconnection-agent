@@ -9,7 +9,7 @@ import pyroute_utils
 import random
 import amqp_agent
 import json
-import ovs_manager
+from ovs import ovs_manager, ofctl_manager
 from helpers_n_wrappers import utils3
 import traceback
 import uuid
@@ -87,6 +87,8 @@ class Agent(object):
             kwargs["port_name"] = port_name
             kwargs["port_id"] = port_id
             self.tunnels[kwargs["node_id"]] = kwargs
+            self.of_manager.add_tunnel(port_id)
+            self.of_manager.add_route(kwargs["peer_vni"], port_id)
         except:
             traceback.print_exc()
             
@@ -97,6 +99,8 @@ class Agent(object):
             kwargs["peer_ip"], kwargs["type"]
         )
         self.tunnels_port_ids[kwargs["peer_vni"]].remove(port_id)
+        self.of_manager.del_tunnel(port_id)
+        self.of_manager.del_route(kwargs["peer_vni"])
         del self.tunnels[kwargs["node_id"]]
             
 def init_agent(argv):
@@ -180,21 +184,34 @@ def init_agent(argv):
     amqp_auth["heartbeat_receive_key"] = amqp_client.AMQP_KEY_HEARTBEATS_CTRL
     
     ovs_arch = {}
-    ovs_arch["interco_bridge"] = config.get('ovs', 'lan_bridge')
-    ovs_arch["tunnels_bridge"] = config.get('ovs', 'wan_bridge')
-    ovs_arch["interco_out_bridge"] = config.get('ovs', 'tun_bridge')
+    ovs_arch["dp_in"] = config.get('ovs', 'lan_bridge')
+    ovs_arch["dp_out"] = config.get('ovs', 'wan_bridge')
+    ovs_arch["dp_tun"] = config.get('ovs', 'tun_bridge')
     ovs_arch["internal_bridge"] = config.get('ovs', 'internal_bridge')
     ovs_arch["standalone"] = standalone
             
     ovs_manager_obj = ovs_manager.Ovs_manager(**ovs_arch)
     ovs_manager_obj.set_infra()
     
+    ovs_arch["patch_in_id"] = ovs_manager_obj.internalPort
+    ovs_arch["patch_out_id"] = ovs_manager_obj.patchOutPort
+    ovs_arch["patch_tun_id"] = ovs_manager_obj.patchTunPort
     
+    ovs_arch["dpid_in"] = ovs_manager_obj.dpid_in
+    ovs_arch["dpid_out"] = ovs_manager_obj.dpid_out
+    ovs_arch["dpid_tun"] = ovs_manager_obj.dpid_tun
+    ovs_arch["self_vni"] = config.get('DEFAULT', 'self_vni')
     
+    flow_ctl = config.get('DEFAULT', 'flow_control')
+    if flow_ctl == "ovs-ofctl":
+        of_manager_obj = ofctl_manager.Ofctl_manager(**ovs_arch)
+    else:
+        raise Input_error("The given flow control method is not supported.")
+
     
     agent = Agent(self_id = self_id, addresses = addresses, iproute = iproute, 
         standalone = standalone, ovs_manager = ovs_manager_obj,
-        vpn_manager = vpn_manager_obj
+        vpn_manager = vpn_manager_obj, of_manager = of_manager_obj
     )
     
     queue_manager_obj = queue_manager.Queue_manager(agent)

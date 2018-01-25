@@ -1,4 +1,4 @@
-import iptables_helper
+from ipsec import iptables_helper
 import logging
 
 

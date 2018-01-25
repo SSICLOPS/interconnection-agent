@@ -10,7 +10,7 @@ import utils
 #import iptablesHelper as vpnIptables
 #from multiprocessing import Process
 #from pyroute2 import netlink
-import ovs_utils
+from ovs import ovs_utils
 import logging
 from helpers_n_wrappers import utils3
 
@@ -26,22 +26,21 @@ class Ovs_manager(object):
         self.controller_ip = None
         self.controller_port = None
         utils3.set_attributes(self, override = True, **kwargs)
-        print(self.__dict__)
 
 
 
     def set_infra(self):
         self.dpid_in = self.create_bridge(
-            self.interco_bridge, self.controller_ip, self.controller_port)
+            self.dp_in, self.controller_ip, self.controller_port)
         self.dpid_tun = self.create_bridge(
-            self.tunnels_bridge, self.controller_ip, self.controller_port)
+            self.dp_tun, self.controller_ip, self.controller_port)
         self.dpid_out = self.create_bridge(
-            self.interco_out_bridge, self.controller_ip, self.controller_port)
+            self.dp_out, self.controller_ip, self.controller_port)
 
-        self.add_patch_port(self.tunnels_bridge, self.interco_out_bridge, "patch-tun-out",
+        self.add_patch_port(self.dp_tun, self.dp_out, "patch-tun-out",
             "patch-out-tun"
         )
-        self.add_patch_port( self.internal_bridge, self.interco_bridge, "patch-int-lan",
+        self.add_patch_port( self.internal_bridge, self.dp_in, "patch-int-lan",
             "patch-lan-int"
         )
 
@@ -166,7 +165,7 @@ name={}".format( port_name )
             logging.info("Tunnel ({},{}) exists : {}".format(
                 local_ip, remote_ip, tunnel))
             return (tunnel, ovs_utils.find_port_id(tunnel))
-        self._add_port(RETCODE_NOTEXIST, peer_port_name, self.tunnels_bridge,
+        self._add_port(RETCODE_NOTEXIST, peer_port_name, self.dp_tun,
             args={
                 "type": proto,
                 "options:df_default": "\"False\"",
@@ -184,7 +183,7 @@ name={}".format( port_name )
 
 
     def del_tun_port(self, peer_port_name, local_ip, remote_ip, proto):
-        ret = self.check_port(peer_port_name, self.tunnels_bridge,
+        ret = self.check_port(peer_port_name, self.dp_tun,
             self.tun_port_conf_check, [proto, local_ip, remote_ip]
         )
         if ret != RETCODE_NOTEXIST:
@@ -233,16 +232,16 @@ local_ip=\"{}\", out_key=flow, remote_ip=\"{}\" tos=inherit}}".format(
 
 #class OVSAgent(object):
 #
-#    def __init__(self, log, interco_bridge="br-cloud", tunnels_bridge="br-cloud-tun",
-#                 interco_out_bridge="br-cloud-out", internal_bridge="br-int", proto="gre", standalone=False, local=False):
+#    def __init__(self, log, dp_in="br-cloud", dp_tun="br-cloud-tun",
+#                 dp_out="br-cloud-out", internal_bridge="br-int", proto="gre", standalone=False, local=False):
 #        self.log = log
-#        self.interco_bridge = interco_bridge
-#        self.interco_out_bridge = interco_out_bridge
-#        self.tunnels_bridge = tunnels_bridge
+#        self.dp_in = dp_in
+#        self.dp_out = dp_out
+#        self.dp_tun = dp_tun
 #        self.internal_bridge = internal_bridge
 #        if self.internal_bridge is not None:
 #            self.internalPort = str(ovsUtils.find_port_id(
-#                self.interco_bridge + "-" + self.internal_bridge))
+#                self.dp_in + "-" + self.internal_bridge))
 #        else:
 #            self.internalPort = None
 #        self.peer_clouds = {}
@@ -389,10 +388,10 @@ local_ip=\"{}\", out_key=flow, remote_ip=\"{}\" tos=inherit}}".format(
 #    def updateTunPort(self, peerPortName, local_ip, remote_ip, ip_version):
 #        if ip_version == 4:
 #            return self.updateTunPortv4(
-#                peerPortName, self.tunnels_bridge, local_ip, remote_ip)
+#                peerPortName, self.dp_tun, local_ip, remote_ip)
 #        elif ip_version == 6:
 #            return self.updateTunPortv6(
-#                peerPortName, self.tunnels_bridge, local_ip, remote_ip)
+#                peerPortName, self.dp_tun, local_ip, remote_ip)
 #
 #    def updateTunPortv4(self, peerPortName, bridge, local_ip, remote_ip):
 #        ret = self.checkPort(peerPortName, bridge, self.tunPortConfCheck, [
@@ -441,9 +440,9 @@ local_ip=\"{}\", out_key=flow, remote_ip=\"{}\" tos=inherit}}".format(
 #        if recreatePort:
 #            ovsUtils.delPort("vethinns" + str(vlan), silent=True)
 #            ovsUtils.delPort("vethoutns" + str(vlan), silent=True)
-#        self.addInternalPort(self.interco_bridge,
+#        self.addInternalPort(self.dp_in,
 #                             "vethinns" + str(vlan), str(vlan))
-#        self.addInternalPort(self.interco_out_bridge,
+#        self.addInternalPort(self.dp_out,
 #                             "vethoutns" + str(vlan), str(vlan))
 #        try:
 #            pyrouteWrapper.setMtu(self.ipr, 'vethinns' + str(vlan), mtu_lan)
@@ -454,7 +453,7 @@ local_ip=\"{}\", out_key=flow, remote_ip=\"{}\" tos=inherit}}".format(
 #        except BaseException:
 #            pass
 #        if self.standalone:
-#            ovsUtils._add_port(self.interco_bridge, networkId, silent=True)
+#            ovsUtils._add_port(self.dp_in, networkId, silent=True)
 #        self.log.info("Network {} links created".format(node_id))
 #
 #    """
