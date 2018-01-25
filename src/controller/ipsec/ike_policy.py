@@ -40,7 +40,7 @@ class Ike_policy_schema(Schema):
     pfs = fields.Str(validate=utils.create_validation_str([
         "modp1024","modp1536","modp2048","modp3072"
     ]))
-    lifetime_value = fields.Number()
+    lifetime_value = fields.Integer()
     
     @post_load
     def load_node(self, data):

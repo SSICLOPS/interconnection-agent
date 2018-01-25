@@ -14,10 +14,12 @@ async def action_del_tunnel(agent, *args, **kwargs):
     
 async def action_add_connection(agent, *args, **kwargs):
     logging.debug("Creating connection {}".format(kwargs))
+    agent.vpn_manager.add_conf(kwargs)
     return True
 
 async def action_del_connection(agent, *args, **kwargs):
     logging.debug("deleting connection {}".format(kwargs))
+    agent.vpn_manager.del_conf(kwargs["node_id"])
     return True
 
 async def action_no_op(agent, *args, **kwargs):

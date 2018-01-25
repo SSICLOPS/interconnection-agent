@@ -13,6 +13,7 @@ import ovs_manager
 from helpers_n_wrappers import utils3
 import traceback
 import uuid
+from ipsec import strongswan_driver, vpn_manager
 
 class Input_error(Exception):
     pass
@@ -134,6 +135,17 @@ def init_agent(argv):
     log_config_file = get_filename(config, "DEFAULT", "log_config_file")
     logging.config.fileConfig(log_config_file)
     
+    #Get the IP addresses
+    iproute = pyroute_utils.createIpr()
+    addresses = set()
+    interfaces = config.get('DEFAULT', 'public_interface')
+    if interfaces.find(",") >= 0:
+        interfaces_list = interfaces.split(",")
+    else:
+        interfaces_list = [interfaces]
+    for interface in interfaces_list:
+        addresses.update(pyroute_utils.getInterfaceIP(iproute, interface))
+    
     
     #Get the VPN configuration
     vpn_backend = config.get('DEFAULT', 'vpn_backend')
@@ -141,9 +153,17 @@ def init_agent(argv):
     if vpn_backend not in ["strongswan"]:
         raise Input_error("The given vpn backend is not supported.")
 
-    template_filename = get_filename(config, vpn_backend, "template_file")
-    template_secrets_filename = get_filename(
+    vpn_conf = {}
+    vpn_conf["conf_template"] = get_filename(config, vpn_backend, "template_file")
+    vpn_conf["secrets_template"] = get_filename(
         config, vpn_backend, "template_secrets_file")
+    vpn_conf["conf_filename"] = get_filename(config, vpn_backend, "conf_file")
+    vpn_conf["secrets_filename"] = get_filename( config, vpn_backend, "secrets_file")
+    vpn_conf["binary"] = get_filename(config, vpn_backend, "executable")
+        
+    if vpn_backend == "strongswan":
+        vpn_driver = strongswan_driver.Strongswan_driver(**vpn_conf)
+        vpn_manager_obj = vpn_manager.Vpn_manager(vpn_driver, addresses)
 
     self_id = config.get('DEFAULT', "agent_id")
     standalone = config.getboolean("DEFAULT", "standalone")
@@ -169,20 +189,12 @@ def init_agent(argv):
     ovs_manager_obj = ovs_manager.Ovs_manager(**ovs_arch)
     ovs_manager_obj.set_infra()
     
-    #Get the IP addresses
-    iproute = pyroute_utils.createIpr()
-    addresses = set()
-    interfaces = config.get('DEFAULT', 'public_interface')
-    if interfaces.find(",") >= 0:
-        interfaces_list = interfaces.split(",")
-    else:
-        interfaces_list = [interfaces]
-    for interface in interfaces_list:
-        addresses.update(pyroute_utils.getInterfaceIP(iproute, interface))
+    
     
     
     agent = Agent(self_id = self_id, addresses = addresses, iproute = iproute, 
-        standalone = standalone, ovs_manager = ovs_manager_obj
+        standalone = standalone, ovs_manager = ovs_manager_obj,
+        vpn_manager = vpn_manager_obj
     )
     
     queue_manager_obj = queue_manager.Queue_manager(agent)

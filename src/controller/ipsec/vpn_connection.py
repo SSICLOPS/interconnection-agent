@@ -110,7 +110,7 @@ async def create_vpn_connection(data_store, amqp, **kwargs):
             text = "{}".format(errors)
         )
     data_store.add(vpn_connection)
-    send_create_connection(data_store, amqp, vpn_connection)
+    await send_create_connection(data_store, amqp, vpn_connection)
     vpn_connection_str = schema.dumps(vpn_connection).data
     data_store.save(vpn_connection)
     raise web.HTTPCreated(content_type="application/json",
@@ -126,7 +126,7 @@ async def delete_vpn_connection(data_store, amqp, node_id):
     vpn_connection = data_store.get(node_id)
     data_store.remove(vpn_connection)
     data_store.delete(vpn_connection)
-    send_delete_connection(data_store, amqp, vpn_connection)
+    await send_delete_connection(data_store, amqp, vpn_connection)
     raise web.HTTPOk()
     
 
