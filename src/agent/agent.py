@@ -54,26 +54,33 @@ def get_filename(config, section, file):
 class Agent(object):
     def __init__(self, **kwargs):
         utils3.set_attributes(self, override = True, **kwargs)
-        self.update_runtime_id()
         self.tunnels_port_ids = {}
         self.tunnels = {}
+        self.networks_mapping = {}
+        self.update_runtime_id()
+
+        
+    def update_heartbeat_payload(self):
+        heartbeat_payload = { "node_uuid": self.self_id,
+            "addresses":list(self.addresses),
+            "runtime_id":self.runtime_id,
+            "standalone": self.standalone,
+            "networks": list(self.networks_mapping.keys())
+        }
+        return json.dumps(heartbeat_payload)
         
     def update_runtime_id(self):
         self.runtime_id = random.randint(1,amqp_client.MAX_KEY)
-        heartbeat_payload = { "node_uuid": self.self_id,
-            "addresses":list(self.addresses),
-            "runtime_id":self.runtime_id
-        }
-        self.heartbeat_payload_str = json.dumps(heartbeat_payload)
+        return self.update_heartbeat_payload()
         
     def update_addresses(self, addresses):
         self.addresses = addresses
-        heartbeat_payload = { "node_uuid": self.self_id,
-            "addresses":list(self.addresses),
-            "runtime_id":self.runtime_id
-        }
-        self.heartbeat_payload_str = json.dumps(heartbeat_payload)
-        
+        return self.update_heartbeat_payload()
+    
+    def update_networks_mapping(self, mappings):
+        self.networks_mapping = mappings
+        return self.update_heartbeat_payload()
+    
     def add_tunnel(self, **kwargs):
         try:
             port_name = "cl-{}".format(str(uuid.uuid4())[:8])
@@ -226,6 +233,7 @@ def init_agent(argv):
     
     # Start running
     asyncio_loop.run_until_complete(amqp_client_obj.connect())
+    asyncio.ensure_future(ovs_manager_obj.get_network_vlans(amqp_client_obj))
     asyncio.ensure_future(amqp_client_obj.send_heartbeat("{}{}".format(
         amqp_client.AMQP_KEY_HEARTBEATS_AGENTS, self_id)))
     asyncio.ensure_future(queue_manager_obj.process_queue())

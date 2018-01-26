@@ -41,10 +41,10 @@ class Amqp_client(object):
                 self.port = 5672
         self.connect_lock = asyncio.Lock()
         self.connected = asyncio.Event()
-        self.generate_heartbeat_payload()
+        self.modify_runtime_id_hb_payload()
         
         
-    def generate_heartbeat_payload(self):
+    def modify_runtime_id_hb_payload(self):
         self.runtime_id = random.randint(1,MAX_KEY)
         self.hearbeat_payload = json.dumps({"node_uuid":self.node_uuid,
             "runtime_id":self.runtime_id
@@ -76,7 +76,7 @@ class Amqp_client(object):
                     e.errno, e.strerror
                 ))
                 await asyncio.sleep(3)
-        self.generate_heartbeat_payload()
+        self.modify_runtime_id_hb_payload()
         self.channel = await self.protocol.channel()
 
         

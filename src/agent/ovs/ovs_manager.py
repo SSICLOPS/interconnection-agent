@@ -3,6 +3,7 @@ import os
 import subprocess
 #from uuid import uuid4
 import utils
+import re
 #from IPy import IP
 #from pyrouteUtils import createIpr, closeIPR, getInterfaceIP, createLink, getLink, setUp, addIfBr, InterfaceNotFound
 #import netns as netns_manager
@@ -13,11 +14,18 @@ import utils
 from ovs import ovs_utils
 import logging
 from helpers_n_wrappers import utils3
+import asyncio
 
 RETCODE_ERROR = -1
 RETCODE_NOTEXIST = 0
 RETCODE_NOTOK = 1
 RETCODE_OK = 2
+
+
+pattern_segId_tun = re.compile("pop_vlan,load:(0x[0-9a-fA-F]+)->NXM_NX_TUN_ID")
+pattern_vlanId_tun = re.compile("dl_vlan=([0-9]+)")
+
+
 
 
 class Ovs_manager(object):
@@ -26,6 +34,7 @@ class Ovs_manager(object):
         self.controller_ip = None
         self.controller_port = None
         utils3.set_attributes(self, override = True, **kwargs)
+
 
 
 
@@ -59,9 +68,9 @@ class Ovs_manager(object):
         if "br-tun" in bridges:
             logging.info("br-tun detected")
             return "br-tun"
-        elif "br-prv" in bridges:
-            logging.info("br-prv detected")
-            return "br-prv"
+        #elif "br-prv" in bridges:
+        #    logging.info("br-prv detected")
+        #    return "br-prv"
         else:
             logging.info("No OpenStack bridge detected")
             return None
@@ -209,16 +218,41 @@ local_ip=\"{}\", out_key=flow, remote_ip=\"{}\" tos=inherit}}".format(
             return name[1:-1]
         return None
 
-
-
-
-
-
-
-
-
-
-
+    async def get_network_vlans(self, amqp):
+        if self.standalone:
+            return
+        while True:
+            tmp_network_mapping = {}
+            exec_list = ['ovs-ofctl', 'dump-flows']
+            if self.opstk_bridge == "br-tun":
+                exec_list.append(self.opstk_bridge)
+                pattern_segId = pattern_segId_tun
+                pattern_vlanId = pattern_vlanId_tun
+            #elif self.opstk_bridge == "br-prv":
+            #    exec_list.append(self.opstk_bridge)
+            #    pattern_segId = 
+            #    pattern_vlanId =
+            if self.version == 13:    
+                exec_list.append("-O")
+                exec_list.append("openflow13")
+            flows = utils.execute_list(exec_list).split("\n")
+            for flow in flows:
+                if 'table=22' not in flow:
+                    continue
+                match = pattern_segId.search(flow)
+                if not match:
+                    continue
+                segId_hex = match.group(1)
+                match = pattern_vlanId.search(flow)
+                if not match:
+                    continue
+                vlan_id = match.group(1)
+                tmp_network_mapping[int(segId_hex,0)] = int(vlan_id)  
+            if amqp.agent.networks_mapping != tmp_network_mapping:
+                amqp.modify_networks_mapping_hb_payload(
+                    tmp_network_mapping
+                )
+            await asyncio.sleep(3)
 
 
 

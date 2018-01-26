@@ -71,10 +71,10 @@ class Amqp_controller(amqp_client.Amqp_client):
                 if payload["runtime_id"] != agent_obj.previous_runtime_id:
                     agent_obj.runtime_id = payload["runtime_id"]
                     logging.info("Agent {} restarted".format(payload["node_uuid"]))
-                    agent_obj.addresses = payload["addresses"]
+                    agent_obj.update(**payload)
                     self.data_store.updatekeys(agent_obj)
                     try:
-                        await self.reload(agent_obj)
+                        await agent_obj.reload(self.data_store, self)
                     except:
                         traceback.print_exc()
             
@@ -94,6 +94,9 @@ class Amqp_controller(amqp_client.Amqp_client):
                 if agent_obj.addresses != payload["addresses"]:
                     agent_obj.addresses = payload["addresses"]
                     self.data_store.updatekeys(agent_obj)
+                if agent_obj.networks != payload["networks"]:
+                    agent_obj.networks = payload["networks"]
+                    self.data_store.updatekeys(agent_obj)
         
         #If the agent was marked for kill, then send kill command
         if agent_obj.runtime_id is None:
@@ -102,22 +105,4 @@ class Amqp_controller(amqp_client.Amqp_client):
                 node_uuid = agent_obj.node_uuid
             )
 
-    async def reload(self, agent_obj):
-        tunnels = []
-        connections = []
-        for address in agent_obj.addresses:
-            tunnels.extend(self.data_store.lookup_list((utils.KEY_L2_TUNNEL, 
-                    utils.KEY_L2_TUNNEL_IP, address
-                ), False, False
-            ))
-        logging.debug("Applying : {}".format(tunnels))
-        for tunnel in tunnels:
-            await l2_tunnel.send_create_tunnel(self.data_store, self, tunnel)
-            connections.extend(self.data_store.lookup_list((utils.KEY_IN_USE, 
-                    tunnel.node_id
-                ), False, False
-            ))
-        for connection in connections:
-            await vpn_connection.send_create_connection(self.data_store, self, 
-                connection
-            )
+    

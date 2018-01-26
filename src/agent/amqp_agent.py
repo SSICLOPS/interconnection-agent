@@ -12,12 +12,16 @@ class Amqp_agent(amqp_client.Amqp_client):
         self.controller_runtime_id = None
         
         
-    def generate_heartbeat_payload(self):
-        self.agent.update_runtime_id()
+    def modify_runtime_id_hb_payload(self):
+        self.hearbeat_payload = self.agent.update_runtime_id()
         self.runtime_id = self.agent.runtime_id
-        self.hearbeat_payload = self.agent.heartbeat_payload_str
         
+    def modify_addresses_hb_payload(self, addresses):
+        self.hearbeat_payload = self.agent.update_addresses(addresses)
     
+    def modify_networks_mapping_hb_payload(self, mappings):
+        self.hearbeat_payload = self.agent.update_networks_mapping(mappings)
+
         
     async def heartbeat_callback(self, channel, body, envelope, properties):
         heartbeat = json.loads(body.decode("utf-8"))
