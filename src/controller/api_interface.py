@@ -5,7 +5,7 @@ from aiohttp import web
 import utils
 
 from ipsec import ike_policy, ipsec_policy, vpn_connection
-from tunneling import l2_tunnel
+from tunneling import l2_tunnel, network
 
 async def test_callback(**kwargs):
     for agent_amqp in kwargs["data_store"].lookup_list(data_container.KEY_AGENT,
@@ -97,6 +97,23 @@ api_mappings = [
             "ipsec_policy_id", "dpd_action", "dpd_interval", "dpd_timeout", 
             "initiator", "secret"
         ], "opt_args" : ["node_id"]
+    },
+    
+    {"method":"GET", "endpoint":"/network", 
+        "callback":network.get_networks, 
+        "url_args": [], "required_args" : [], "opt_args" : []
+    },
+    {"method":"GET", "endpoint":"/network/{node_id}", 
+        "callback":network.get_networks, "url_args": ["node_id"], 
+        "required_args" : [], "opt_args" : []
+    },
+    {"method":"DELETE", "endpoint":"/network/{node_id}", 
+        "callback":network.delete_network, "url_args": ["node_id"], 
+        "required_args" : [], "opt_args" : []
+    },
+    {"method":"POST", "endpoint":"/network", 
+        "callback":network.create_network, "url_args": [], 
+        "required_args" : ["name", "cloud_network_id"], "opt_args" : ["node_id"]
     },
 ]
 

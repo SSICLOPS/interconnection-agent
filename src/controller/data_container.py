@@ -1,44 +1,36 @@
 from helpers_n_wrappers import container3
 import logging
 from ipsec import ike_policy, ipsec_policy, vpn_connection
-from tunneling import l2_tunnel
+from tunneling import l2_tunnel, network
 import sys
 
 import utils
 
 
-_restores = ["ike_policies", "ipsec_policies", "tunnels", "connections"]
+_restores = ["ike_policies", "ipsec_policies", "tunnels", "connections", 
+    "networks"]
 
 _type_name_eq = {
     "tunnels" :     {"node_schema": l2_tunnel.L2_tunnel_schema,
         "node_key": utils.KEY_L2_TUNNEL, "node_type_name": "tunnels"},
-#    "networks" :   {"node_schema": Network_schema, 
-#        "node_key": KEY_NET,"node_type_name": "networks"},
+    "networks" :   {"node_schema": network.Network_schema, 
+        "node_key": utils.KEY_NETWORK,"node_type_name": "networks"},
     "connections" : {"node_schema": vpn_connection.Vpn_connection_schema, 
         "node_key": utils.KEY_CONNECTION,"node_type_name": "connections"},
-#    "links" :       {"node_schema": Link_schema, 
-#        "node_key": KEY_LINK,"node_type_name": "links"},
     "ike_policies" :     {"node_schema": ike_policy.Ike_policy_schema, 
         "node_key": utils.KEY_POLICY_IKE,"node_type_name": "ike_policies"},
     "ipsec_policies" :   {"node_schema": ipsec_policy.Ipsec_policy_schema, 
         "node_key": utils.KEY_POLICY_IPSEC,"node_type_name": "ipsec_policies"},
 #    "netPeers" :       {"node_schema": Net_peer_schema, 
 #        "node_key": KEY_NETPEER,"node_type_name": "netPeers"},
-#    "mptcpProxies" :    {"node_schema": Mptcp_proxy_schema, 
-#        "node_key": KEY_MPTCP_PROXY,"node_type_name": "mptcpProxies"},
-#    "policies" :        {"node_schema": Policy_schema, 
-#        "node_key": KEY_POLICY,"node_type_name": "policies"}
 }
 _type_eq = {
     "L2_tunnel" :      _type_name_eq["tunnels"],
-#    "Expanded_net" :   _type_name_eq["networks"],
+    "Network" :        _type_name_eq["networks"],
     "Vpn_connection" : _type_name_eq["connections"],
-#    "Vpn_link" :       _type_name_eq["links"],
     "Ike_policy" :     _type_name_eq["ike_policies"],
     "Ipsec_policy" :   _type_name_eq["ipsec_policies"],
 #    "Net_peer" :       _type_name_eq["netPeers"],
-#    "Mptcp_proxy" :    _type_name_eq["mptcpProxies"],
-#    "Policy" :         _type_name_eq["policies"],
 }
 
 
