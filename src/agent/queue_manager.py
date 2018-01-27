@@ -35,7 +35,11 @@ class Queue_manager(object):
                 element = await self.action_queue.get()
                 logging.debug("Processing queue element {}".format(element))
                 action_uuid = element["action_uuid"]
-                action_func = actions_interface.actions_mapping[element["operation"]]
+                try:
+                    action_func = actions_interface.actions_mapping[element["operation"]]
+                except KeyError:
+                    logging.debug("Unknown action")
+                    continue
                 if "args" not in element:
                     element["args"] = []
                 if "kwargs" not in element:

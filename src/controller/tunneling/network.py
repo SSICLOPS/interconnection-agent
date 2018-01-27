@@ -24,6 +24,7 @@ class Network(container3.ContainerNode):
 
     def __init__(self, **kwargs):
         self.node_id = str(uuid.uuid4())
+        self.agents_deployed = set()
         utils3.set_attributes(self, override = True, **kwargs)
         super().__init__(name="Network")
             
@@ -82,5 +83,41 @@ async def delete_network(data_store, amqp, node_id):
     network = data_store.get(node_id)
     data_store.remove(network)
     data_store.delete(node_id)
+    #TODO remove the network from everywhere it was propagated
+    remove_all_propagated_network(data_store, amqp, network)
     raise web.HTTPAccepted()
     
+   
+    
+async def send_create_network(data_store, amqp, agent, network):
+    await send_action_network(data_store, amqp, utils.ACTION_ADD_NETWORK, 
+        network, agent
+    )
+    network.agents_deployed.add(agent.node_uuid)
+
+async def send_delete_network(data_store, amqp, agent, network):
+    await send_action_network(data_store, amqp, utils.ACTION_DEL_NETWORK, 
+        network, agent
+    ) 
+    network.agents_deployed.discard(agent.node_uuid)
+    
+async def remove_all_propagated_network(data_store, amqp, network):
+    agents_list = list(network.agents_deployed)
+    for agent_uuid in agents_list:
+        agent = data_store.get(agent_uuid)
+        await send_delete_network(data_store, amqp, agent, network)
+
+async def ack_callback(payload, action):
+    logging.debug("{} completed {}successfully for network {}".format(
+        "Setup" if action["operation"]== utils.ACTION_ADD_NETWORK else "Removal",
+        "un" if payload["operation"] == utils.ACTION_NACK else "",
+        action["kwargs"]["node_id"]
+    ))
+    
+async def send_action_network(data_store, amqp, action, network, agent_amqp):
+    payload = {"operation":action,
+        "kwargs": Network_schema().dump(network).data
+    }
+    await amqp.publish_action(payload=payload, 
+        node = agent_amqp, callback = ack_callback,
+    )

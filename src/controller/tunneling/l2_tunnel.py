@@ -116,7 +116,7 @@ async def send_action_tunnel(data_store, amqp, action, tunnel):
         "kwargs": L2_tunnel_schema().dump(tunnel).data
     }
     await amqp.publish_action(payload=payload, 
-        node_uuid = agent_amqp.node_uuid, callback = ack_callback,
+        node = agent_amqp, callback = ack_callback,
     )
     
  

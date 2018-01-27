@@ -1,14 +1,14 @@
 from helpers_n_wrappers import container3
 import logging
 from ipsec import ike_policy, ipsec_policy, vpn_connection
-from tunneling import l2_tunnel, network
+from tunneling import l2_tunnel, network, expansion
 import sys
 
 import utils
 
 
 _restores = ["ike_policies", "ipsec_policies", "tunnels", "connections", 
-    "networks"]
+    "networks", "expansions"]
 
 _type_name_eq = {
     "tunnels" :     {"node_schema": l2_tunnel.L2_tunnel_schema,
@@ -21,8 +21,8 @@ _type_name_eq = {
         "node_key": utils.KEY_POLICY_IKE,"node_type_name": "ike_policies"},
     "ipsec_policies" :   {"node_schema": ipsec_policy.Ipsec_policy_schema, 
         "node_key": utils.KEY_POLICY_IPSEC,"node_type_name": "ipsec_policies"},
-#    "netPeers" :       {"node_schema": Net_peer_schema, 
-#        "node_key": KEY_NETPEER,"node_type_name": "netPeers"},
+    "expansions" :       {"node_schema": expansion.Expansion_schema, 
+        "node_key": utils.KEY_EXPANSION,"node_type_name": "expansions"},
 }
 _type_eq = {
     "L2_tunnel" :      _type_name_eq["tunnels"],
@@ -30,7 +30,7 @@ _type_eq = {
     "Vpn_connection" : _type_name_eq["connections"],
     "Ike_policy" :     _type_name_eq["ike_policies"],
     "Ipsec_policy" :   _type_name_eq["ipsec_policies"],
-#    "Net_peer" :       _type_name_eq["netPeers"],
+    "Expansion" :      _type_name_eq["expansions"],
 }
 
 

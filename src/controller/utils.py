@@ -13,6 +13,8 @@ KEY_L2_TUNNEL_IP = "KEY_L2_TUNNEL_IP"
 KEY_CONNECTION = "KEY_CONNECTION"
 KEY_NETWORK = "KEY_NETWORK"
 KEY_CLOUD_NET_ID = "KEY_CLOUD_NET_ID"
+KEY_EXPANSION = "KEY_EXPANSION"
+
 
 ACTION_ACK = "Ack"
 ACTION_NACK = "Nack"
@@ -22,6 +24,10 @@ ACTION_ADD_TUNNEL = "Add-tunnel"
 ACTION_DEL_TUNNEL = "Del-tunnel"
 ACTION_ADD_CONNECTION = "Add-connection"
 ACTION_DEL_CONNECTION = "Del-connection"
+ACTION_ADD_EXPANSION = "Add-expansion"
+ACTION_DEL_EXPANSION = "Del-expansion"
+ACTION_ADD_NETWORK = "Add-network"
+ACTION_DEL_NETWORK = "Del-network"
 
 
 
@@ -71,4 +77,7 @@ ike_validator = functools.partial(data_store_validator.check_in_data,
 )
 ipsec_validator = functools.partial(data_store_validator.check_in_data,
     KEY_POLICY_IPSEC
+)
+network_validator = functools.partial(data_store_validator.check_in_data,
+    KEY_NETWORK
 )

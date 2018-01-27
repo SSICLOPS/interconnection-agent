@@ -5,7 +5,7 @@ from aiohttp import web
 import utils
 
 from ipsec import ike_policy, ipsec_policy, vpn_connection
-from tunneling import l2_tunnel, network
+from tunneling import l2_tunnel, network, expansion
 
 async def test_callback(**kwargs):
     for agent_amqp in kwargs["data_store"].lookup_list(data_container.KEY_AGENT,
@@ -13,7 +13,7 @@ async def test_callback(**kwargs):
     ):
         payload = {"operation":utils.ACTION_NO_OP}
         await kwargs["amqp"].publish_action(payload=payload, 
-            node_uuid = agent_amqp.node_uuid, callback = ack_callback,
+            node = agent_amqp, callback = ack_callback,
         )
     raise web.HTTPOk()
     
@@ -115,5 +115,27 @@ api_mappings = [
         "callback":network.create_network, "url_args": [], 
         "required_args" : ["name", "cloud_network_id"], "opt_args" : ["node_id"]
     },
+    
+    {"method":"GET", "endpoint":"/expansion", 
+        "callback":expansion.get_expansions, 
+        "url_args": [], "required_args" : [], "opt_args" : []
+    },
+    {"method":"GET", "endpoint":"/expansion/{node_id}", 
+        "callback":expansion.get_expansions, "url_args": ["node_id"], 
+        "required_args" : [], "opt_args" : []
+    },
+    {"method":"GET", "endpoint":"/expansion/network/{network_id}", 
+        "callback":expansion.get_expansions, "url_args": ["network_id"], 
+        "required_args" : [], "opt_args" : []
+    },
+    {"method":"DELETE", "endpoint":"/expansion/{node_id}", 
+        "callback":expansion.delete_expansion, "url_args": ["node_id"], 
+        "required_args" : [], "opt_args" : []
+    },
+    {"method":"POST", "endpoint":"/expansion", 
+        "callback":expansion.create_expansion, "url_args": [], 
+        "required_args" : ["network_id", "tunnel_id", "intercloud_id_out", 
+            "intercloud_id_in"
+        ], "opt_args" : ["node_id"]
+    },
 ]
-

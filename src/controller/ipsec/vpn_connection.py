@@ -58,8 +58,11 @@ class Vpn_connection(container3.ContainerNode):
         keys.append((self.node_id, True))
         keys.append(((utils.KEY_CONNECTION, self.node_id), True))
         keys.append(((utils.KEY_IN_USE, self.tunnel_id), False))
+        keys.append(((utils.KEY_IN_USE, utils.KEY_CONNECTION, self.tunnel_id), False))
         keys.append(((utils.KEY_IN_USE, self.ike_policy_id), False))
+        keys.append(((utils.KEY_IN_USE, utils.KEY_CONNECTION, self.ike_policy_id), False))
         keys.append(((utils.KEY_IN_USE, self.ipsec_policy_id), False))
+        keys.append(((utils.KEY_IN_USE, utils.KEY_CONNECTION, self.ipsec_policy_id), False))
         
         return keys
     
@@ -170,5 +173,5 @@ async def send_action_connection(agent_amqp, amqp, action, connection_args):
         "kwargs": connection_args
     }
     await amqp.publish_action(payload=payload, 
-        node_uuid = agent_amqp.node_uuid, callback = ack_callback,
+        node = agent_amqp, callback = ack_callback,
     )
