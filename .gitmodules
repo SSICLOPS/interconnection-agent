@@ -1,3 +1,6 @@
 [submodule "src/helpers_n_wrappers"]
 	path = src/helpers_n_wrappers
 	url = git@github.com:maelk/helpers_n_wrappers.git
+[submodule "src/netns"]
+	path = src/netns
+	url = git@github.com:maelk/python-netns.git

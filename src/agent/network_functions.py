@@ -2,7 +2,7 @@ import pyroute_utils
 import utils
 import logging
 import traceback
-import netns
+from netns import netns
 import iptables
 
 """
