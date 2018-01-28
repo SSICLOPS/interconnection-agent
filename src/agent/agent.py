@@ -1,20 +1,55 @@
+"""
+BSD 3-Clause License
+
+Copyright (c) 2018, Maël Kimmerlin, Aalto University, Finland
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+* Redistributions of source code must retain the above copyright notice, this
+  list of conditions and the following disclaimer.
+
+* Redistributions in binary form must reproduce the above copyright notice,
+  this list of conditions and the following disclaimer in the documentation
+  and/or other materials provided with the distribution.
+
+* Neither the name of the copyright holder nor the names of its
+  contributors may be used to endorse or promote products derived from
+  this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+"""
+
 import sys, getopt, os
 import configparser
-from common import amqp_client
 import asyncio
 import logging.config
 import logging
-import queue_manager
-import pyroute_utils
 import random
-import amqp_agent
 import json
-from ovs import ovs_manager, ofctl_manager
-from helpers_n_wrappers import utils3
 import traceback
 import uuid
+
+from common import amqp_client
+import queue_manager
+import pyroute_utils
+import amqp_agent
+from ovs import ovs_manager, ofctl_manager
 from ipsec import strongswan_driver, vpn_manager
 import network_functions
+
+from helpers_n_wrappers import utils3
+
 
 class Input_error(Exception):
     pass
@@ -72,7 +107,7 @@ class Agent(object):
             "runtime_id":self.runtime_id,
             "standalone": self.standalone,
             "networks": list(self.networks_mapping.keys())
-        }
+            }
         return json.dumps(heartbeat_payload)
         
     def update_runtime_id(self):
@@ -88,29 +123,46 @@ class Agent(object):
         return self.update_heartbeat_payload()
     
     def add_tunnel(self, **kwargs):
+        #Create a default port name if it does not exist
         port_name = "cl-{}".format(str(uuid.uuid4())[:8])
+        
+        #Create or find the existing tunnel
         port_name, port_id = self.ovs_manager.add_tun_port(port_name, 
             kwargs["self_ip"], kwargs["peer_ip"], kwargs["type"]
-        )
+            )
+        
+        #Store this tunnel as a way to reach the peer
         if kwargs["peer_vni"] in self.tunnels_port_ids :
             self.tunnels_port_ids[kwargs["peer_vni"]].append(port_id)
         else:
             self.tunnels_port_ids[kwargs["peer_vni"]] = [port_id]
+        
         kwargs["port_name"] = port_name
         kwargs["port_id"] = port_id
         self.tunnels[kwargs["node_id"]] = kwargs
+        
+        #Add the flows for the tunnel
         self.of_manager.add_tunnel(port_id)
+        
+        #Add a direct route, This will change with a route manager
         self.of_manager.add_route(kwargs["peer_vni"], port_id)
             
     def del_tunnel(self, **kwargs):
         port_name = self.tunnels[kwargs["node_id"]]["port_name"]
         port_id = self.tunnels[kwargs["node_id"]]["port_id"]
+        
+        #Delete the tunnel
         self.ovs_manager.del_tun_port(port_name, kwargs["self_ip"], 
             kwargs["peer_ip"], kwargs["type"]
-        )
-        self.tunnels_port_ids[kwargs["peer_vni"]].remove(port_id)
+            )
+        self.tunnels_port_ids[kwargs["peer_vni"]].discard(port_id)
+        
+        #Delete the tunnel flows
         self.of_manager.del_tunnel(port_id)
+        
+        #Delete the route, This will change
         self.of_manager.del_route(kwargs["peer_vni"])
+        
         del self.tunnels[kwargs["node_id"]]
         
     def add_network(self, **kwargs):
@@ -119,13 +171,19 @@ class Agent(object):
         seg_id = kwargs["cloud_network_id"]
         vlan = self.networks_mapping[seg_id]
         self.networks[network_id]["vlan"] = vlan
+        
+        #Add the namespace ports on the switches
         self.ovs_manager.add_internal_port(self.ovs_manager.dp_in, 
             pyroute_utils.IN_PORT_ROOT.format(seg_id), vlan
-        )
+            )
         self.ovs_manager.add_internal_port(self.ovs_manager.dp_out, 
             pyroute_utils.OUT_PORT_ROOT.format(seg_id), vlan
-        )
+            )
+            
+        #Create the namespace
         network_functions.addNetns(self.iproute, seg_id, vlan, self.mtu_lan)
+        
+        #Create the clamping rules
         network_functions.setIptables(seg_id, self.mtu_wan)
         
     def del_network(self, **kwargs):
@@ -133,9 +191,14 @@ class Agent(object):
         network_dict = self.networks[network_id]
         seg_id = network_dict["cloud_network_id"]
         vlan = network_dict["vlan"]
+        
+        #Delete the namespace
         network_functions.removeNetns(seg_id)
+        
+        #Remove the ports from the switches
         self.ovs_manager.del_port(pyroute_utils.IN_PORT_ROOT.format(seg_id))
         self.ovs_manager.del_port(pyroute_utils.OUT_PORT_ROOT.format(seg_id))
+        
         del self.networks[network_id]
         
     
@@ -145,9 +208,13 @@ class Agent(object):
         network = self.networks[kwargs["network_id"]]
         vlan = network["vlan"]
         expansions_list = []
+        
+        #Create a list of all expansions for a network for the flood
         for expansion_mult in self.expansions.values():
             if expansion_mult["cloud_network_id"] == kwargs["cloud_network_id"]:
                 expansions_list.append(expansion_mult)
+        
+        #Add the flows for the expansion
         self.of_manager.add_expansion(kwargs, expansions_list, vlan)
         
     def del_expansion(self, **kwargs):
@@ -156,10 +223,14 @@ class Agent(object):
         network = self.networks[expansion["network_id"]]
         vlan = network["vlan"]
         del self.expansions[expansion_id]
+        
+        #Create a list of all expansions but the deleted 
         expansions_list = []
         for expansion_mult in self.expansions.values():
             if expansion_mult["cloud_network_id"] == expansion["cloud_network_id"]:
                 expansions_list.append(expansion_mult)
+        
+        #Delete the flow and update the flood
         self.of_manager.del_expansion(expansion, expansions_list, vlan)
         
             
@@ -215,6 +286,7 @@ def init_agent(argv):
     mtu_lan = config.getint("DEFAULT", "mtu_lan")
     mtu_wan = config.getint("DEFAULT", "mtu_wan")
     
+    
     #Get the VPN configuration
     vpn_backend = config.get('DEFAULT', 'vpn_backend')
     
@@ -235,17 +307,8 @@ def init_agent(argv):
 
 
     
-    #Get the AMQP configuration
-    amqp_auth = {}
-    amqp_auth["host"] = config.get('amqp', 'host')
-    amqp_auth["login"] = config.get('amqp', 'login')
-    amqp_auth["password"] = config.get('amqp', 'password')
-    amqp_auth["virtualhost"] = config.get('amqp', 'virtualhost')
-    amqp_auth["port"] = config.get('amqp', 'port')
-    amqp_auth["loop"] = asyncio_loop
-    amqp_auth["bind_action_queue"] = True
-    amqp_auth["heartbeat_receive_key"] = amqp_client.AMQP_KEY_HEARTBEATS_CTRL
     
+    #Get the ovs configuration and init the manager
     ovs_arch = {}
     ovs_arch["dp_in"] = config.get('ovs', 'lan_bridge')
     ovs_arch["dp_out"] = config.get('ovs', 'wan_bridge')
@@ -256,6 +319,8 @@ def init_agent(argv):
     ovs_manager_obj = ovs_manager.Ovs_manager(**ovs_arch)
     ovs_manager_obj.set_infra()
     
+    
+    #Add the runtime info and init the flow manager
     ovs_arch["patch_in_id"] = ovs_manager_obj.internalPort
     ovs_arch["patch_out_id"] = ovs_manager_obj.patchOutPort
     ovs_arch["patch_tun_id"] = ovs_manager_obj.patchTunPort
@@ -271,18 +336,31 @@ def init_agent(argv):
         raise Input_error("The given flow control method is not supported.")
 
     
+    #Init the agent
     agent = Agent(self_id = self_id, addresses = addresses, iproute = iproute, 
         standalone = standalone, ovs_manager = ovs_manager_obj,
         vpn_manager = vpn_manager_obj, of_manager = of_manager_obj,
         mtu_lan = mtu_lan, mtu_wan = mtu_wan
-    )
+        )
     
+    #Init the queue manager
     queue_manager_obj = queue_manager.Queue_manager(agent)
+    
+    #Get the AMQP configuration
+    amqp_auth = {}
+    amqp_auth["host"] = config.get('amqp', 'host')
+    amqp_auth["login"] = config.get('amqp', 'login')
+    amqp_auth["password"] = config.get('amqp', 'password')
+    amqp_auth["virtualhost"] = config.get('amqp', 'virtualhost')
+    amqp_auth["port"] = config.get('amqp', 'port')
+    amqp_auth["loop"] = asyncio_loop
+    amqp_auth["bind_action_queue"] = True
+    amqp_auth["heartbeat_receive_key"] = amqp_client.AMQP_KEY_HEARTBEATS_CTRL
     amqp_auth["action_callback"] = queue_manager_obj.add_msg_to_queue
     
     amqp_client_obj = amqp_agent.Amqp_agent(agent = agent, node_uuid = self_id,
         **amqp_auth
-    )
+        )
     queue_manager_obj.set_amqp(amqp_client_obj)
     
     
