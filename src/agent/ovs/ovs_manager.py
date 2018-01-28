@@ -7,7 +7,7 @@ import re
 #from IPy import IP
 #from pyrouteUtils import createIpr, closeIPR, getInterfaceIP, createLink, getLink, setUp, addIfBr, InterfaceNotFound
 #import netns as netns_manager
-#import pyrouteUtils as pyrouteWrapper
+#import pyrouteUtils as pyroute_utils
 #import iptablesHelper as vpnIptables
 #from multiprocessing import Process
 #from pyroute2 import netlink
@@ -15,6 +15,7 @@ from ovs import ovs_utils
 import logging
 from helpers_n_wrappers import utils3
 import asyncio
+import pyroute_utils
 
 RETCODE_ERROR = -1
 RETCODE_NOTEXIST = 0
@@ -79,7 +80,7 @@ class Ovs_manager(object):
         if bridge is None:
             return 13
         protocols = utils.execute(
-            "ovs-vsctl get bridge " + bridge + " protocols")
+            "ovs-vsctl get bridge {} protocols".format(bridge))
         if "OpenFlow13" in protocols:
             return 13
         elif "OpenFlow10" in protocols:
@@ -93,13 +94,25 @@ class Ovs_manager(object):
         if ip is not None and port is not None:
             ovs_utils.configure_bridge(bridge_name, ip, port, "OpenFlow13")
         dpid = ovs_utils.get_dpid(bridge_name, "openflow13")
-        logging.info("Bridge " + dpid + " (" + bridge_name + ") set")
+        logging.info("Bridge {} ({}) set".format(bridge_name, dpid))
         return dpid
 
 
 
 
-    def check_port(self, port_name, bridge, check_function, func_args):
+    def check_existing_tunnels(self, local_ip, remote_ip, proto):
+        output = utils.execute_list(["ovs-vsctl", "--columns=name",
+            "find", "interface", "options={{df_default=False, in_key=flow, \
+local_ip=\"{}\", out_key=flow, remote_ip=\"{}\" tos=inherit}}".format(
+                local_ip, remote_ip
+            ), "type={}".format(proto)]
+        )
+        if output:
+            name = output.split(":")[1].split()[0]
+            return name[1:-1]
+        return None
+        
+    def _check_port(self, port_name, bridge, check_function, func_args):
         output = utils.execute(
             "ovs-vsctl --columns=name,type,options find interface \
 name={}".format( port_name )
@@ -113,7 +126,7 @@ name={}".format( port_name )
             return RETCODE_OK
         return RETCODE_NOTOK
 
-    def patch_port_conf_check(self, output, peer):
+    def _patch_port_conf_check(self, output, peer):
         if output.find("type") == -1 or output.find("peer") == -1:
             return False
         return (output.split("type")[1].split(":")[1].split()[0].startswith(
@@ -122,7 +135,7 @@ name={}".format( port_name )
             output.split("peer")[1].split("=")[1].split()[0].startswith(peer)
         )
 
-    def tun_port_conf_check(self, output, proto, local_ip, remote_ip):
+    def _tun_port_conf_check(self, output, proto, local_ip, remote_ip):
         if output.find("type") == -1 or output.find("local_ip") == - \
                 1 or output.find("remote_ip") == -1:
             return False
@@ -132,6 +145,12 @@ name={}".format( port_name )
             and output.split("in_key")[1].split("=")[1].split()[0].startswith("flow")
             and output.split("out_key")[1].split("=")[1].split()[0].startswith("flow")
         )
+        
+    def _internal_port_conf_check(self, output):
+        if output.find("type") == -1:
+            return False
+        return output.split("type")[1].split(
+            ":")[1].split()[0].startswith('internal')
 
 
 
@@ -141,16 +160,17 @@ name={}".format( port_name )
         if ret == RETCODE_ERROR:
             raise RuntimeError
         if ret == RETCODE_NOTOK:
-            ovs_utils.delete_port(silent=True, port_name=name)
-            logging.info("Port " + name +
-                          " deleted for incorrect configuration")
+            self.del_port(name)
+            logging.info("Port {} deleted for incorrect configuration".format(
+                name
+            ))
         if ret != RETCODE_OK:
             ovs_utils.add_port(bridge, name, vlan=vlan,
                               mode="trunk", silent=True)
             ovs_utils.modify_port(name, True, **args)
-            logging.info("Port " + name + " created")
+            logging.info("Port {} created".format( name ))
         else:
-            logging.info("Port " + name + " exists")
+            logging.info("Port {} exists".format( name ))
 
 
     def add_patch_port(self, left_bridge, right_bridge, left_port = None,
@@ -159,12 +179,12 @@ name={}".format( port_name )
             left_port = "patch-{}-{}".format(left_bridge, right_bridge)
         if not right_port:
             right_port = "patch-{}-{}".format(right_bridge, left_bridge)
-        ret = self.check_port(left_port, left_bridge,
-                             self.patch_port_conf_check, [right_port])
+        ret = self._check_port(left_port, left_bridge,
+                             self._patch_port_conf_check, [right_port])
         self._add_port(ret, left_port, left_bridge, args={
                             "type": "patch", "options:peer": right_port})
-        ret = self.check_port(right_port, right_bridge,
-                             self.patch_port_conf_check, [left_port])
+        ret = self._check_port(right_port, right_bridge,
+                             self._patch_port_conf_check, [left_port])
         self._add_port(ret, right_port, right_bridge, args={
                             "type": "patch", "options:peer": left_port})
 
@@ -187,16 +207,23 @@ name={}".format( port_name )
         )
         return (peer_port_name, ovs_utils.find_port_id(peer_port_name))
 
+    def add_internal_port(self, bridge, name, vlan):
+        ret = self._check_port(name, bridge, self._internal_port_conf_check, [])
+        self._add_port(ret, name, bridge, args={
+                            "type": "internal"}, vlan=vlan)    
+        
+        
 
-
-
-
+    def del_port(self, name):
+        ovs_utils.delete_port(silent=True, port_name=name)
+        logging.info("Port {} deleted".format(name))
+    
     def del_tun_port(self, peer_port_name, local_ip, remote_ip, proto):
-        ret = self.check_port(peer_port_name, self.dp_tun,
-            self.tun_port_conf_check, [proto, local_ip, remote_ip]
+        ret = self._check_port(peer_port_name, self.dp_tun,
+            self._tun_port_conf_check, [proto, local_ip, remote_ip]
         )
         if ret != RETCODE_NOTEXIST:
-            ovs_utils.delete_port(silent=True, port_name=peer_port_name)
+            self.del_port(peer_port_name)
             logging.info("Tunnel {} ({},{}) deleted".format(
                 peer_port_name, local_ip, remote_ip))
         else:
@@ -206,17 +233,7 @@ name={}".format( port_name )
 
 
 
-    def check_existing_tunnels(self, local_ip, remote_ip, proto):
-        output = utils.execute_list(["ovs-vsctl", "--columns=name",
-            "find", "interface", "options={{df_default=False, in_key=flow, \
-local_ip=\"{}\", out_key=flow, remote_ip=\"{}\" tos=inherit}}".format(
-                local_ip, remote_ip
-            ), "type={}".format(proto)]
-        )
-        if output:
-            name = output.split(":")[1].split()[0]
-            return name[1:-1]
-        return None
+
 
     async def get_network_vlans(self, amqp):
         if self.standalone:
@@ -253,14 +270,6 @@ local_ip=\"{}\", out_key=flow, remote_ip=\"{}\" tos=inherit}}".format(
                     tmp_network_mapping
                 )
             await asyncio.sleep(3)
-
-
-
-
-
-
-
-
 
 
 
@@ -461,7 +470,7 @@ local_ip=\"{}\", out_key=flow, remote_ip=\"{}\" tos=inherit}}".format(
 #    def removeNetns(self, node_id, vlan, networkId):
 #        ovsUtils.delPort("vethinns" + str(vlan))
 #        ovsUtils.delPort("vethoutns" + str(vlan))
-#        pyrouteWrapper.delNetNS("mtu-" + networkId)
+#        pyroute_utils.delNetNS("mtu-" + networkId)
 #        if self.standalone:
 #            ovsUtils.delete_port(silent=True, port_name=networkId)
 #        self.log.info("Network {} namespace removed".format(node_id))
@@ -479,11 +488,11 @@ local_ip=\"{}\", out_key=flow, remote_ip=\"{}\" tos=inherit}}".format(
 #        self.addInternalPort(self.dp_out,
 #                             "vethoutns" + str(vlan), str(vlan))
 #        try:
-#            pyrouteWrapper.setMtu(self.ipr, 'vethinns' + str(vlan), mtu_lan)
+#            pyroute_utils.setMtu(self.ipr, 'vethinns' + str(vlan), mtu_lan)
 #        except BaseException:
 #            pass
 #        try:
-#            pyrouteWrapper.setMtu(self.ipr, 'vethoutns' + str(vlan), mtu_lan)
+#            pyroute_utils.setMtu(self.ipr, 'vethoutns' + str(vlan), mtu_lan)
 #        except BaseException:
 #            pass
 #        if self.standalone:
@@ -497,12 +506,12 @@ local_ip=\"{}\", out_key=flow, remote_ip=\"{}\" tos=inherit}}".format(
 #    def updateMTUWan(self, node_id, vlan, networkId, mtu_wan, mtu_lan, mtu):
 #        vlan = str(vlan)
 #
-#        ns = pyrouteWrapper.getNetNS("mtu-" + networkId)
+#        ns = pyroute_utils.getNetNS("mtu-" + networkId)
 #        self.log.info("mtu_lan : {} type: {}".format(mtu, type(mtu)))
-#        pyrouteWrapper.setMtu(ns, 'vethoutns' + vlan, mtu_lan)
-#        pyrouteWrapper.setMtu(ns, 'vethinns' + vlan, mtu_lan)
-#        pyrouteWrapper.setMtu(ns, 'lxb', mtu_lan)
-#        pyrouteWrapper.setMtu(ns, 'lxb.' + vlan, mtu_lan)
+#        pyroute_utils.setMtu(ns, 'vethoutns' + vlan, mtu_lan)
+#        pyroute_utils.setMtu(ns, 'vethinns' + vlan, mtu_lan)
+#        pyroute_utils.setMtu(ns, 'lxb', mtu_lan)
+#        pyroute_utils.setMtu(ns, 'lxb.' + vlan, mtu_lan)
 #        ns.close()
 #
 #        with netns_manager.NetNS("mtu-" + networkId):
@@ -521,20 +530,20 @@ local_ip=\"{}\", out_key=flow, remote_ip=\"{}\" tos=inherit}}".format(
 #    """
 #
 #    def addNetns(self, node_id, networkId, vlan, mtu_wan, mtu_lan):
-#        pyrouteWrapper.createNetNS("mtu-" + networkId)
+#        pyroute_utils.createNetNS("mtu-" + networkId)
 #        self.defaultNetNS.resetNetNS()
-#        ns = pyrouteWrapper.getNetNS("mtu-" + networkId)
-#        pyrouteWrapper.createLink(ns, 'lxb', 'bridge')
-#        pyrouteWrapper.createVlan(ns, 'lxb.' + str(vlan), 'lxb', vlan)
-#        idx_in = pyrouteWrapper.setNetNS(
+#        ns = pyroute_utils.getNetNS("mtu-" + networkId)
+#        pyroute_utils.createLink(ns, 'lxb', 'bridge')
+#        pyroute_utils.createVlan(ns, 'lxb.' + str(vlan), 'lxb', vlan)
+#        idx_in = pyroute_utils.setNetNS(
 #            self.ipr, "mtu-" + networkId, interfaceName='vethinns' + str(vlan))
-#        idx_out = pyrouteWrapper.setNetNS(
+#        idx_out = pyroute_utils.setNetNS(
 #            self.ipr, "mtu-" + networkId, interfaceName='vethoutns' + str(vlan))
-#        idx_lxb = pyrouteWrapper.addIfBr(ns, ifIdx=idx_in, brName='lxb')[1]
-#        idx_lxb = pyrouteWrapper.addIfBr(ns, ifIdx=idx_out, brName='lxb')[1]
-#        pyrouteWrapper.setUp(ns, idx=idx_in)
-#        pyrouteWrapper.setUp(ns, idx=idx_out)
-#        pyrouteWrapper.setUp(ns, idx=idx_lxb)
+#        idx_lxb = pyroute_utils.addIfBr(ns, ifIdx=idx_in, brName='lxb')[1]
+#        idx_lxb = pyroute_utils.addIfBr(ns, ifIdx=idx_out, brName='lxb')[1]
+#        pyroute_utils.setUp(ns, idx=idx_in)
+#        pyroute_utils.setUp(ns, idx=idx_out)
+#        pyroute_utils.setUp(ns, idx=idx_lxb)
 #        ns.close()
 #
 #        with netns_manager.NetNS("mtu-" + networkId):
@@ -548,28 +557,28 @@ local_ip=\"{}\", out_key=flow, remote_ip=\"{}\" tos=inherit}}".format(
 #
 #    def setNetUp(self, networkId, vlan):
 #
-#        ns = pyrouteWrapper.getNetNS("mtu-" + networkId)
+#        ns = pyroute_utils.getNetNS("mtu-" + networkId)
 #        for iface in [
 #                "vethinns" + str(vlan), "vethoutns" + str(vlan), "lxb", "lxb" + str(vlan)]:
 #            try:
-#                idx = pyrouteWrapper.getLink(self.ipr, iface)
-#            except pyrouteWrapper.InterfaceNotFound:
+#                idx = pyroute_utils.getLink(self.ipr, iface)
+#            except pyroute_utils.InterfaceNotFound:
 #                continue
-#            pyrouteWrapper.setUp(self.ipr, idx=idx)
+#            pyroute_utils.setUp(self.ipr, idx=idx)
 #        ns.close()
 #
 #        self.log.info("Network {} set up".format(networkId))
 #
 #    def setNetDown(self, networkId, vlan):
 #
-#        ns = pyrouteWrapper.getNetNS("mtu-" + networkId)
+#        ns = pyroute_utils.getNetNS("mtu-" + networkId)
 #        for iface in [
 #                "vethinns" + str(vlan), "vethoutns" + str(vlan), "lxb", "lxb" + str(vlan)]:
 #            try:
-#                idx = pyrouteWrapper.getLink(self.ipr, iface)
-#            except pyrouteWrapper.InterfaceNotFound:
+#                idx = pyroute_utils.getLink(self.ipr, iface)
+#            except pyroute_utils.InterfaceNotFound:
 #                continue
-#            pyrouteWrapper.setDown(self.ipr, idx=idx)
+#            pyroute_utils.setDown(self.ipr, idx=idx)
 #        ns.close()
 #
 #        self.log.info("Network {} set down".format(networkId))
@@ -588,18 +597,18 @@ local_ip=\"{}\", out_key=flow, remote_ip=\"{}\" tos=inherit}}".format(
 #        self.log.info("Network {} iptables rules added".format(networkId))
 #
 #    def initTCNamespace(self, ns, iface):
-#        pyrouteWrapper.tc_add_qdisc(ns, iface, 'prio', 0x1, bands=8, priomap=(
+#        pyroute_utils.tc_add_qdisc(ns, iface, 'prio', 0x1, bands=8, priomap=(
 #            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
 #        for i in xrange(0x1, 0x9):
-#            pyrouteWrapper.tc_add_qdisc(ns, iface, 'prio', 0x10 + i, parent=0x10000 + i,
+#            pyroute_utils.tc_add_qdisc(ns, iface, 'prio', 0x10 + i, parent=0x10000 + i,
 #                                        bands=2, priomap=(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
 #
 #    def initTCNetwork(self, ns, iface, vlan):
 #        for i in xrange(0, 8):
 #            try:
-#                pyrouteWrapper.tc_del_filter(ns, iface, 0x10 + i + 0x1, 0x1)
+#                pyroute_utils.tc_del_filter(ns, iface, 0x10 + i + 0x1, 0x1)
 #            except BaseException:
 #                pass
-#            pyrouteWrapper.tc_add_filter(
+#            pyroute_utils.tc_add_filter(
 #                ns, iface, 0x10 + i + 0x1, 0x1, vlan, i)
 #

@@ -1,4 +1,4 @@
-from ipsec import iptables_helper
+import iptables
 import logging
 
 
@@ -6,9 +6,9 @@ class Vpn_manager(object):
 
     def __init__(self, vpnDriver, iface):
         self.driver = vpnDriver
-        iptables_helper.createChain("filter", "INTERCO")
+        iptables.createChain("filter", "INTERCO")
         for i in iface:
-            iptables_helper.addRules(iptables_helper.defRulesVPNChain(i))
+            iptables.addRules(iptables.defRulesVPNChain(i))
         self.driver.restart()
         self.configs = {}
 
@@ -22,11 +22,11 @@ class Vpn_manager(object):
         for node_id in self.configs:
             config = self.configs[node_id]
             if "peer_public_ip" in config:
-                iptables_helper.addRules(iptables_helper.defVPNConnections(
+                iptables.addRules(iptables.defVPNConnections(
                     config["self_ip"], config["peer_public_ip"]
                 ))
             else:
-                iptables_helper.addRules(iptables_helper.defVPNConnections(
+                iptables.addRules(iptables.defVPNConnections(
                     config["self_ip"], config["peer_ip"]
                 ))
             self.driver.start_connection(node_id)

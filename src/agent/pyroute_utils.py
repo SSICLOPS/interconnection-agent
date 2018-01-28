@@ -4,14 +4,15 @@ import parse
 import platform
 from socket import AF_INET
 
+IN_PORT_ROOT = "vethin{}"
+OUT_PORT_ROOT = "vethout{}"
+
 
 def createIpr():
     return IPRoute()
 
 
 def createLink(ipr, name, type, peerName=None):
-    if not ipr or not name or not type or (type == 'veth' and not peerName):
-        raise UndefinedInterface("Cannot create link")
     try:
         if type == 'veth':
             ipr.link('add', ifname=name, kind=type, peer=peerName)
@@ -24,8 +25,6 @@ def createLink(ipr, name, type, peerName=None):
 
 
 def createVlan(ipr, name, link, vlan_id):
-    if not ipr or not name or not link or not vlan_id:
-        raise UndefinedInterface("Cannot create link")
     try:
         ipr.link('add', ifname=name, kind="vlan",
                  link=getLink(ipr, link), vlan_id=vlan_id)
@@ -36,8 +35,6 @@ def createVlan(ipr, name, link, vlan_id):
 
 
 def getLink(ipr, name):
-    if not ipr or not name:
-        raise UndefinedInterface("Cannot find link")
     idx = ipr.link_lookup(ifname=name)
     if not idx:
         raise InterfaceNotFound("Interface " + name + " not found")
@@ -45,8 +42,6 @@ def getLink(ipr, name):
 
 
 def setMtu(ipr, name, mtu, idx=None, netns=None):
-    if not ipr or (not name and not idx) or not mtu:
-        raise UndefinedInterface("Cannot set MTU")
     if not idx:
         idx = getLink(ipr, name)
     if idx:
@@ -55,8 +50,6 @@ def setMtu(ipr, name, mtu, idx=None, netns=None):
 
 
 def setUp(ipr, name=None, idx=None, netns=None):
-    if not ipr or (not name and not idx):
-        raise UndefinedInterface("Cannot set link up")
     if idx is None and name is not None:
         idx = getLink(ipr, name)
     ipr.link('set', index=idx, state="up")
@@ -64,8 +57,6 @@ def setUp(ipr, name=None, idx=None, netns=None):
 
 
 def setDown(ipr, name=None, idx=None, netns=None):
-    if not ipr or (not name and not idx):
-        raise UndefinedInterface("Cannot set link down")
     if idx is None and name is not None:
         idx = getLink(ipr, name)
     ipr.link('set', index=idx, state="down")
@@ -73,8 +64,6 @@ def setDown(ipr, name=None, idx=None, netns=None):
 
 
 def createNetNS(name):
-    if not name:
-        raise UndefinedNamespace("Cannot find namespace")
     try:
 
         return netns.create(name)
@@ -99,10 +88,6 @@ Set the interface to a namespace, try to find it first in the root namespace, th
 
 
 def setNetNS(ipr, namespace, interfaceName=None, interfaceIdx=None):
-    if not namespace:
-        raise UndefinedNamespace("Cannot find namespace")
-    if not ipr or (not interfaceName and not interfaceIdx):
-        raise UndefinedInterface("Cannot set namespace")
     if interfaceIdx is None and interfaceName is not None:
         try:
             interfaceIdx = getLink(ipr, interfaceName)
@@ -126,8 +111,6 @@ def setNetNS(ipr, namespace, interfaceName=None, interfaceIdx=None):
 
 
 def addIfBr(ipr, ifName=None, ifIdx=None, brName=None, brIdx=None):
-    if not ipr or (not ifName and not ifIdx) or (not brName and not brIdx):
-        raise UndefinedInterface("Cannot add interface to bridge")
     if ifIdx is None and ifName is not None:
         ifIdx = getLink(ipr, ifName)
     if brIdx is None and brName is not None:
@@ -141,8 +124,6 @@ def addIfBr(ipr, ifName=None, ifIdx=None, brName=None, brIdx=None):
 
 
 def delLink(ipr, name=None, idx=None):
-    if not ipr or (not name and not idx):
-        raise UndefinedInterface("Cannot delete link")
     if idx is None and name is not None:
         idx = getLink(ipr, name)
     try:

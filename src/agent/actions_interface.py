@@ -24,10 +24,12 @@ async def action_del_connection(agent, *args, **kwargs):
     
 async def action_add_network(agent, *args, **kwargs):
     logging.debug("Creating network {}".format(kwargs))
+    agent.add_network(*args, **kwargs)
     return True
 
 async def action_del_network(agent, *args, **kwargs):
     logging.debug("deleting network {}".format(kwargs))
+    agent.del_network(*args, **kwargs)
     return True
     
 async def action_add_expansion(agent, *args, **kwargs):

@@ -14,6 +14,7 @@ from helpers_n_wrappers import utils3
 import traceback
 import uuid
 from ipsec import strongswan_driver, vpn_manager
+import network_functions
 
 class Input_error(Exception):
     pass
@@ -57,7 +58,11 @@ class Agent(object):
         self.tunnels_port_ids = {}
         self.tunnels = {}
         self.networks_mapping = {}
+        self.networks = {}
         self.update_runtime_id()
+        #ovs_manager
+        #vpn_manager
+        #of_manager
 
         
     def update_heartbeat_payload(self):
@@ -109,6 +114,32 @@ class Agent(object):
         self.of_manager.del_tunnel(port_id)
         self.of_manager.del_route(kwargs["peer_vni"])
         del self.tunnels[kwargs["node_id"]]
+        
+    def add_network(self, **kwargs):
+        network_id = kwargs["node_id"]
+        self.networks[network_id] = kwargs
+        seg_id = kwargs["cloud_network_id"]
+        vlan = self.networks_mapping[seg_id]
+        self.networks[network_id]["vlan"] = vlan
+        self.ovs_manager.add_internal_port(self.ovs_manager.dp_in, 
+            pyroute_utils.IN_PORT_ROOT.format(seg_id), vlan
+        )
+        self.ovs_manager.add_internal_port(self.ovs_manager.dp_out, 
+            pyroute_utils.OUT_PORT_ROOT.format(seg_id), vlan
+        )
+        network_functions.addNetns(self.iproute, seg_id, vlan, self.mtu_lan)
+        network_functions.setIptables(seg_id, self.mtu_wan)
+        
+    def del_network(self, **kwargs):
+        network_id = kwargs["node_id"]
+        network_dict = self.networks[network_id]
+        seg_id = network_dict["cloud_network_id"]
+        vlan = network_dict["vlan"]
+        network_functions.removeNetns(seg_id)
+        self.ovs_manager.del_port(pyroute_utils.IN_PORT_ROOT.format(seg_id))
+        self.ovs_manager.del_port(pyroute_utils.OUT_PORT_ROOT.format(seg_id))
+        del self.networks[network_id]
+        
             
 def init_agent(argv):
     cli_error_str = "agent.py -c <configuration file>"
@@ -157,6 +188,10 @@ def init_agent(argv):
     for interface in interfaces_list:
         addresses.update(pyroute_utils.getInterfaceIP(iproute, interface))
     
+    self_id = config.get('DEFAULT', "agent_id")
+    standalone = config.getboolean("DEFAULT", "standalone")
+    mtu_lan = config.getint("DEFAULT", "mtu_lan")
+    mtu_wan = config.getint("DEFAULT", "mtu_wan")
     
     #Get the VPN configuration
     vpn_backend = config.get('DEFAULT', 'vpn_backend')
@@ -176,8 +211,7 @@ def init_agent(argv):
         vpn_driver = strongswan_driver.Strongswan_driver(**vpn_conf)
         vpn_manager_obj = vpn_manager.Vpn_manager(vpn_driver, addresses)
 
-    self_id = config.get('DEFAULT', "agent_id")
-    standalone = config.getboolean("DEFAULT", "standalone")
+
     
     #Get the AMQP configuration
     amqp_auth = {}
@@ -203,11 +237,10 @@ def init_agent(argv):
     ovs_arch["patch_in_id"] = ovs_manager_obj.internalPort
     ovs_arch["patch_out_id"] = ovs_manager_obj.patchOutPort
     ovs_arch["patch_tun_id"] = ovs_manager_obj.patchTunPort
-    
     ovs_arch["dpid_in"] = ovs_manager_obj.dpid_in
     ovs_arch["dpid_out"] = ovs_manager_obj.dpid_out
     ovs_arch["dpid_tun"] = ovs_manager_obj.dpid_tun
-    ovs_arch["self_vni"] = config.get('DEFAULT', 'self_vni')
+    ovs_arch["self_vni"] = config.getint('DEFAULT', 'self_vni')
     
     flow_ctl = config.get('DEFAULT', 'flow_control')
     if flow_ctl == "ovs-ofctl":
@@ -218,7 +251,8 @@ def init_agent(argv):
     
     agent = Agent(self_id = self_id, addresses = addresses, iproute = iproute, 
         standalone = standalone, ovs_manager = ovs_manager_obj,
-        vpn_manager = vpn_manager_obj, of_manager = of_manager_obj
+        vpn_manager = vpn_manager_obj, of_manager = of_manager_obj,
+        mtu_lan = mtu_lan, mtu_wan = mtu_wan
     )
     
     queue_manager_obj = queue_manager.Queue_manager(agent)
