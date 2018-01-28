@@ -61,10 +61,10 @@ def setIptables(network_id, mtu):
             ]
         ))
 
-    logging.info("Network {} iptables rules added".format(network_id))        
+    logging.debug("Network {} iptables rules added".format(network_id))        
         
         
         
 def removeNetns(network_id):
     pyroute_utils.delNetNS("net-{}".format(network_id))
-    logging.info("Network {} namespace removed".format(network_id))   
+    logging.debug("Network {} namespace removed".format(network_id))   

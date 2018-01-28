@@ -59,6 +59,7 @@ class Agent(object):
         self.tunnels = {}
         self.networks_mapping = {}
         self.networks = {}
+        self.expansions = {}
         self.update_runtime_id()
         #ovs_manager
         #vpn_manager
@@ -87,22 +88,19 @@ class Agent(object):
         return self.update_heartbeat_payload()
     
     def add_tunnel(self, **kwargs):
-        try:
-            port_name = "cl-{}".format(str(uuid.uuid4())[:8])
-            port_name, port_id = self.ovs_manager.add_tun_port(port_name, 
-                kwargs["self_ip"], kwargs["peer_ip"], kwargs["type"]
-            )
-            if kwargs["peer_vni"] in self.tunnels_port_ids :
-                self.tunnels_port_ids[kwargs["peer_vni"]].append(port_id)
-            else:
-                self.tunnels_port_ids[kwargs["peer_vni"]] = [port_id]
-            kwargs["port_name"] = port_name
-            kwargs["port_id"] = port_id
-            self.tunnels[kwargs["node_id"]] = kwargs
-            self.of_manager.add_tunnel(port_id)
-            self.of_manager.add_route(kwargs["peer_vni"], port_id)
-        except:
-            traceback.print_exc()
+        port_name = "cl-{}".format(str(uuid.uuid4())[:8])
+        port_name, port_id = self.ovs_manager.add_tun_port(port_name, 
+            kwargs["self_ip"], kwargs["peer_ip"], kwargs["type"]
+        )
+        if kwargs["peer_vni"] in self.tunnels_port_ids :
+            self.tunnels_port_ids[kwargs["peer_vni"]].append(port_id)
+        else:
+            self.tunnels_port_ids[kwargs["peer_vni"]] = [port_id]
+        kwargs["port_name"] = port_name
+        kwargs["port_id"] = port_id
+        self.tunnels[kwargs["node_id"]] = kwargs
+        self.of_manager.add_tunnel(port_id)
+        self.of_manager.add_route(kwargs["peer_vni"], port_id)
             
     def del_tunnel(self, **kwargs):
         port_name = self.tunnels[kwargs["node_id"]]["port_name"]
@@ -139,6 +137,30 @@ class Agent(object):
         self.ovs_manager.del_port(pyroute_utils.IN_PORT_ROOT.format(seg_id))
         self.ovs_manager.del_port(pyroute_utils.OUT_PORT_ROOT.format(seg_id))
         del self.networks[network_id]
+        
+    
+    def add_expansion(self, **kwargs):
+        expansion_id = kwargs["node_id"]
+        self.expansions[expansion_id] = kwargs
+        network = self.networks[kwargs["network_id"]]
+        vlan = network["vlan"]
+        expansions_list = []
+        for expansion_mult in self.expansions.values():
+            if expansion_mult["cloud_network_id"] == kwargs["cloud_network_id"]:
+                expansions_list.append(expansion_mult)
+        self.of_manager.add_expansion(kwargs, expansions_list, vlan)
+        
+    def del_expansion(self, **kwargs):
+        expansion_id = kwargs["node_id"]
+        expansion = self.expansions[expansion_id]
+        network = self.networks[expansion["network_id"]]
+        vlan = network["vlan"]
+        del self.expansions[expansion_id]
+        expansions_list = []
+        for expansion_mult in self.expansions.values():
+            if expansion_mult["cloud_network_id"] == expansion["cloud_network_id"]:
+                expansions_list.append(expansion_mult)
+        self.of_manager.del_expansion(expansion, expansions_list, vlan)
         
             
 def init_agent(argv):

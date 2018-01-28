@@ -3,41 +3,43 @@ import logging
 
 
 async def action_add_tunnel(agent, *args, **kwargs):
-    logging.debug("Creating tunnel {}".format(kwargs))
+    logging.debug("Creating tunnel {}".format(kwargs["node_id"]))
     agent.add_tunnel(*args, **kwargs)
     return True
 
 async def action_del_tunnel(agent, *args, **kwargs):
-    logging.debug("deleting tunnel {}".format(kwargs))
+    logging.debug("deleting tunnel {}".format(kwargs["node_id"]))
     agent.del_tunnel(*args, **kwargs)
     return True
     
 async def action_add_connection(agent, *args, **kwargs):
-    logging.debug("Creating connection {}".format(kwargs))
+    logging.debug("Creating connection {}".format(kwargs["node_id"]))
     agent.vpn_manager.add_conf(kwargs)
     return True
 
 async def action_del_connection(agent, *args, **kwargs):
-    logging.debug("deleting connection {}".format(kwargs))
+    logging.debug("deleting connection {}".format(kwargs["node_id"]))
     agent.vpn_manager.del_conf(kwargs["node_id"])
     return True
     
 async def action_add_network(agent, *args, **kwargs):
-    logging.debug("Creating network {}".format(kwargs))
+    logging.debug("Creating network {}".format(kwargs["node_id"]))
     agent.add_network(*args, **kwargs)
     return True
 
 async def action_del_network(agent, *args, **kwargs):
-    logging.debug("deleting network {}".format(kwargs))
+    logging.debug("deleting network {}".format(kwargs["node_id"]))
     agent.del_network(*args, **kwargs)
     return True
     
 async def action_add_expansion(agent, *args, **kwargs):
-    logging.debug("Creating expansion {}".format(kwargs))
+    logging.debug("Creating expansion {}".format(kwargs["node_id"]))
+    agent.add_expansion(*args, **kwargs)
     return True
 
 async def action_del_expansion(agent, *args, **kwargs):
-    logging.debug("deleting expansion {}".format(kwargs))
+    logging.debug("deleting expansion {}".format(kwargs["node_id"]))
+    agent.del_expansion(*args, **kwargs)
     return True
 
 async def action_no_op(agent, *args, **kwargs):

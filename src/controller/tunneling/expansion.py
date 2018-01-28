@@ -11,6 +11,7 @@ from marshmallow import Schema, fields, post_load, ValidationError, validate
 
 _expansion_args = {
     "node_id": ("expansion", "node_id"),
+    "network_id": ("network", "node_id"),
     "cloud_network_id": ("network", "cloud_network_id"),
     "peer_vni": ("tunnel", "peer_vni"),
     "inter_id_in": ("expansion", "intercloud_id_in"),

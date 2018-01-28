@@ -161,16 +161,16 @@ name={}".format( port_name )
             raise RuntimeError
         if ret == RETCODE_NOTOK:
             self.del_port(name)
-            logging.info("Port {} deleted for incorrect configuration".format(
+            logging.debug("Port {} deleted for incorrect configuration".format(
                 name
             ))
         if ret != RETCODE_OK:
             ovs_utils.add_port(bridge, name, vlan=vlan,
                               mode="trunk", silent=True)
             ovs_utils.modify_port(name, True, **args)
-            logging.info("Port {} created".format( name ))
+            logging.debug("Port {} created".format( name ))
         else:
-            logging.info("Port {} exists".format( name ))
+            logging.debug("Port {} exists".format( name ))
 
 
     def add_patch_port(self, left_bridge, right_bridge, left_port = None,
@@ -191,7 +191,7 @@ name={}".format( port_name )
     def add_tun_port(self, peer_port_name, local_ip, remote_ip, proto):
         tunnel = self.check_existing_tunnels(local_ip, remote_ip, proto)
         if tunnel is not None:
-            logging.info("Tunnel ({},{}) exists : {}".format(
+            logging.debug("Tunnel ({},{}) exists : {}".format(
                 local_ip, remote_ip, tunnel))
             return (tunnel, ovs_utils.find_port_id(tunnel))
         self._add_port(RETCODE_NOTEXIST, peer_port_name, self.dp_tun,
@@ -216,7 +216,7 @@ name={}".format( port_name )
 
     def del_port(self, name):
         ovs_utils.delete_port(silent=True, port_name=name)
-        logging.info("Port {} deleted".format(name))
+        logging.debug("Port {} deleted".format(name))
     
     def del_tun_port(self, peer_port_name, local_ip, remote_ip, proto):
         ret = self._check_port(peer_port_name, self.dp_tun,
@@ -224,10 +224,10 @@ name={}".format( port_name )
         )
         if ret != RETCODE_NOTEXIST:
             self.del_port(peer_port_name)
-            logging.info("Tunnel {} ({},{}) deleted".format(
+            logging.debug("Tunnel {} ({},{}) deleted".format(
                 peer_port_name, local_ip, remote_ip))
         else:
-            logging.info("Tunnel {} ({},{}) does not exist".format(
+            logging.debug("Tunnel {} ({},{}) does not exist".format(
                 peer_port_name, local_ip, remote_ip))
 
 

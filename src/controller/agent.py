@@ -11,7 +11,6 @@ class Agent(container3.ContainerNode):
         super().__init__(name="Agent")
         utils3.set_attributes(self, override = True, **kwargs)
         self.loading = asyncio.Event()
-        logging.info("{}".format(kwargs))
 
     def lookupkeys(self):
         keys = []

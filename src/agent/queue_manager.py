@@ -21,8 +21,10 @@ class Queue_manager(object):
         await self.action_queue.put(element)
         
     async def add_msg_to_queue(self, channel, body, envelope, properties):
-        logging.debug("Received an action : {}".format(body))
         element = json.loads(body.decode("utf-8"))
+        logging.debug("Received action {} : {}".format(element["action_uuid"],
+            element["operation"]
+        ))
         element["reply-to"] = properties.reply_to
         await self.add_to_queue(element)
         
@@ -33,7 +35,13 @@ class Queue_manager(object):
         while True:
             try:
                 element = await self.action_queue.get()
-                logging.debug("Processing queue element {}".format(element))
+            except:
+                return
+            resp = None
+            try:
+                logging.debug("Processing queue element {}".format(
+                    element["action_uuid"]
+                ))
                 action_uuid = element["action_uuid"]
                 try:
                     action_func = actions_interface.actions_mapping[element["operation"]]
@@ -45,19 +53,23 @@ class Queue_manager(object):
                 if "kwargs" not in element:
                     element["kwargs"] = {}
                 resp = await action_func(self.agent, *element["args"],**element["kwargs"])
-                if resp:
-                    action_ack = "Ack"
-                else:
-                    action_ack = "Nack"
-                await self.amqp.publish_msg(payload=json.dumps(
-                        {"action_uuid":action_uuid,"operation":action_ack}
-                    ),
-                    properties = {"content_type":'application/json'},
-                    exchange_name='',
-                    routing_key=element["reply-to"]
-                )
+                
                 self.action_queue.task_done()
+                logging.debug("Action completed")
             except SystemExit:
                 sys.exit()
-            except:
-                traceback.print_exc()
+            except :
+                logging.error("Action failed")
+                resp = False
+            if resp:
+                action_ack = "Ack"
+            else:
+                action_ack = "Nack"
+
+            await self.amqp.publish_msg(payload=json.dumps(
+                    {"action_uuid":action_uuid,"operation":action_ack}
+                ),
+                properties = {"content_type":'application/json'},
+                exchange_name='',
+                routing_key=element["reply-to"]
+            )

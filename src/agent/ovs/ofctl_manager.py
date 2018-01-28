@@ -11,8 +11,8 @@ TABLE_VNI_SPLIT = 10
 TABLE_VLAN_CHECK = 11
 TABLE_LEARNING = 12
 TABLE_TYPE_SPLIT = 20
-TABLE_UNICAST_DUPLICATE = 21
-TABLE_UNICAST_LEARNT = 22
+TABLE_UNICAST_LEARNT = 21
+TABLE_UNICAST_APPLY = 22
 TABLE_MULTICAST = 25
 TABLE_ROUTING = 30
 
@@ -61,7 +61,7 @@ class Ofctl_manager(object):
             )
         ])
         utils.execute_list(["ovs-ofctl", "mod-flows", "--strict", self.dp_tun, 
-            "table={}, priority=0, tun_id={}/0xfff, actions=goto_table:{}".format(
+            "table={}, priority=10, tun_id={}/0xfff, actions=goto_table:{}".format(
                 TABLE_VNI_SPLIT, self.self_vni, TABLE_VLAN_CHECK
             )
         ])
@@ -76,14 +76,14 @@ NXM_OF_VLAN_TCI[0..11]=NXM_NX_REG0[0..11]\
 load:NXM_NX_REG1[]->NXM_NX_REG1[],\
 load:NXM_NX_TUN_ID[0..11]->NXM_NX_REG2[12..23],\
 load:NXM_NX_TUN_ID[12..23]->NXM_NX_REG2[0..11]),output:{}".format(TABLE_LEARNING, 
-                TABLE_UNICAST_DUPLICATE, self.patch_tun_id
+                TABLE_UNICAST_LEARNT, self.patch_tun_id
             )
         ])
         utils.execute_list(["ovs-ofctl", "mod-flows", "--strict", self.dp_tun, 
             "table={}, priority=10, \
 dl_dst=00:00:00:00:00:00/01:00:00:00:00:00, \
 actions=resubmit(,{}),resubmit(,{})".format(TABLE_TYPE_SPLIT, 
-                TABLE_UNICAST_DUPLICATE, TABLE_UNICAST_LEARNT
+                TABLE_UNICAST_LEARNT, TABLE_UNICAST_APPLY
             )
         ])
         utils.execute_list(["ovs-ofctl", "mod-flows", "--strict", self.dp_tun, 
@@ -93,17 +93,17 @@ dl_dst=01:00:00:00:00:00/01:00:00:00:00:00, actions=goto_table:{}".format(
             )
         ])
         utils.execute_list(["ovs-ofctl", "mod-flows", "--strict", self.dp_tun, 
-            "table={}, priority=0, actions=drop".format(TABLE_UNICAST_DUPLICATE)
+            "table={}, priority=0, actions=drop".format(TABLE_UNICAST_LEARNT)
         ])
         utils.execute_list(["ovs-ofctl", "mod-flows", "--strict", self.dp_tun, 
             "table={}, priority=20, reg1=0, \
-actions=goto_table:{}".format(TABLE_UNICAST_LEARNT, TABLE_MULTICAST)
+actions=goto_table:{}".format(TABLE_UNICAST_APPLY, TABLE_MULTICAST)
         ])
         utils.execute_list(["ovs-ofctl", "mod-flows", "--strict", self.dp_tun, 
             "table={}, priority=10, actions=\
 move:NXM_NX_REG1[0..11]->NXM_OF_VLAN_TCI[0..11],\
 move:NXM_NX_REG2[0..24]->NXM_NX_TUN_ID[0..24],\
-goto_table:{}".format(TABLE_UNICAST_LEARNT, TABLE_ROUTING)
+goto_table:{}".format(TABLE_UNICAST_APPLY, TABLE_ROUTING)
         ])
         utils.execute_list(["ovs-ofctl", "mod-flows", "--strict", self.dp_tun, 
             "table={}, priority=0, actions=drop".format(TABLE_MULTICAST)
@@ -149,5 +149,64 @@ goto_table:{}".format(TABLE_UNICAST_LEARNT, TABLE_ROUTING)
         ])
         
 
-
+    def add_expansion(self, expansion, expansions_list, local_vlan):
+        #{'inter_id_out': 126, 'inter_id_in': 128, 'node_id': '19e4b5fc-474e-41e8-a181-6729a1d1f633', 'peer_vni': 156, 'cloud_network_id': 4}
+        #self.self_vni
+        utils.execute_list(["ovs-ofctl", "mod-flows", "--strict", self.dp_tun, 
+            "table={}, priority=10, tun_id=0x{:03x}{:03x}, vlan_vid=0x1{:03x}/0x1fff, \
+actions=mod_vlan_vid:{},load:{}->NXM_NX_REG0[],load:{}->NXM_NX_REG1[],goto_table:{}".format(TABLE_VLAN_CHECK, 
+                expansion["peer_vni"], self.self_vni, expansion["inter_id_in"], 
+                local_vlan, hex(expansion["inter_id_in"]), 
+                hex(expansion["inter_id_out"]), TABLE_LEARNING
+            )
+        ])
+        actions=[]
+        for expansion_mult in expansions_list:
+            actions.append("mod_vlan_vid:{}".format(expansion_mult["inter_id_out"]))
+            actions.append("set_field:0x{:03x}{:03x}->tun_id".format(self.self_vni,
+                expansion_mult["peer_vni"]
+            ))
+            actions.append("resubmit(,{})".format(TABLE_ROUTING))
+        actions_str = ",".join(actions)
+        utils.execute_list(["ovs-ofctl", "mod-flows", "--strict", self.dp_tun, 
+            "table={}, priority=10, vlan_vid=0x1{:03x}/0x1fff, actions={}".format(
+                TABLE_MULTICAST, 
+                local_vlan, 
+                actions_str
+            )
+        ])
+    
+    
+    
+    
+    def del_expansion(self, expansion, expansions_list, local_vlan):
+        #{'inter_id_out': 126, 'inter_id_in': 128, 'node_id': '19e4b5fc-474e-41e8-a181-6729a1d1f633', 'peer_vni': 156, 'cloud_network_id': 4}
+        #self.self_vni
+        utils.execute_list(["ovs-ofctl", "del-flows", "--strict", self.dp_tun, 
+            "table={}, priority=10, tun_id=0x{:x}{:x}, vlan_vid=0x1{:03x}/0x1fff".format(TABLE_VLAN_CHECK, 
+                expansion["peer_vni"], self.self_vni, expansion["inter_id_in"]
+            )
+        ])
+        actions=[]
+        for expansion_mult in expansions_list:
+            actions.append("mod_vlan_vid:{}".format(expansion_mult["inter_id_out"]))
+            actions.append("set_field:0x{:03x}{:03x}->tun_id".format(self.self_vni,
+                expansion_mult["peer_vni"]
+            ))
+            actions.append("resubmit(,{})".format(TABLE_ROUTING))
+        actions_str = ",".join(actions)
+        utils.execute_list(["ovs-ofctl", "mod-flows", "--strict", self.dp_tun, 
+            "table={}, priority=10, vlan_vid=0x1{:03x}/0x1fff, actions={}".format(
+                TABLE_MULTICAST, 
+                local_vlan, 
+                actions_str
+            )
+        ])
+        
+        
+        
+        
+        
+        
+        
     

@@ -30,7 +30,7 @@ class Vpn_manager(object):
                     config["self_ip"], config["peer_ip"]
                 ))
             self.driver.start_connection(node_id)
-        logging.info("VPN driver initialized")
+        logging.debug("VPN configuration applied")
        
        
     def add_conf(self, config):
