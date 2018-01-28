@@ -47,45 +47,10 @@ import amqp_agent
 from ovs import ovs_manager, ofctl_manager
 from ipsec import strongswan_driver, vpn_manager
 import network_functions
+from common import file
 
 from helpers_n_wrappers import utils3
 
-
-class Input_error(Exception):
-    pass
-
-def get_filename(config, section, file):
-        filename = config.get(section, file)
-        filename_tmp = filename
-        
-        #Absolute path, use as is
-        if filename.startswith("/"):
-            if not os.path.isfile(filename):
-                raise Input_error(filename + " does not exist")
-            return filename
-        
-        #Relative path: 
-        # if a work directory is given, use this, otherwise use the 
-        #current directory
-        env_dir_path = os.getenv("DIR_AGT_PATH")
-        
-        if env_dir_path:
-            filename_tmp = os.getenv("DIR_AGT_PATH")
-            
-            #If the variable does not end with /, add one
-            if filename_tmp[-1:] == "/":
-                filename_tmp += "/"
-            
-            filename_tmp += filename
-        
-        else:
-            filename_tmp = filename
-        
-        #Check if it exists
-        if not os.path.isfile(filename_tmp):
-            raise Input_error(filename + " does not exist")
-        
-        return filename_tmp
         
 class Agent(object):
     def __init__(self, **kwargs):
@@ -267,7 +232,7 @@ def init_agent(argv):
     config = configparser.ConfigParser()
     config.read(configuration_file)
 
-    log_config_file = get_filename(config, "DEFAULT", "log_config_file")
+    log_config_file = file.get_filename(config, "DEFAULT", "log_config_file")
     logging.config.fileConfig(log_config_file)
     
     #Get the IP addresses
@@ -294,12 +259,12 @@ def init_agent(argv):
         raise Input_error("The given vpn backend is not supported.")
 
     vpn_conf = {}
-    vpn_conf["conf_template"] = get_filename(config, vpn_backend, "template_file")
-    vpn_conf["secrets_template"] = get_filename(
+    vpn_conf["conf_template"] = file.get_filename(config, vpn_backend, "template_file")
+    vpn_conf["secrets_template"] = file.get_filename(
         config, vpn_backend, "template_secrets_file")
-    vpn_conf["conf_filename"] = get_filename(config, vpn_backend, "conf_file")
-    vpn_conf["secrets_filename"] = get_filename( config, vpn_backend, "secrets_file")
-    vpn_conf["binary"] = get_filename(config, vpn_backend, "executable")
+    vpn_conf["conf_filename"] = file.get_filename(config, vpn_backend, "conf_file")
+    vpn_conf["secrets_filename"] = file.get_filename( config, vpn_backend, "secrets_file")
+    vpn_conf["binary"] = file.get_filename(config, vpn_backend, "executable")
         
     if vpn_backend == "strongswan":
         vpn_driver = strongswan_driver.Strongswan_driver(**vpn_conf)

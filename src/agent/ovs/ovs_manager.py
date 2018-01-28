@@ -135,7 +135,7 @@ class Ovs_manager(object):
     def check_existing_tunnels(self, local_ip, remote_ip, proto):
         output = utils.execute_list(["ovs-vsctl", "--columns=name",
             "find", "interface", "{}{}{}".format(
-                "options={{df_default=False, in_key=flow, ",
+                "options={df_default=False, in_key=flow, ",
                 "local_ip=\"{}\", out_key=flow, ".format(local_ip),
                 "remote_ip=\"{}\" tos=inherit}}".format( remote_ip)
                 ),

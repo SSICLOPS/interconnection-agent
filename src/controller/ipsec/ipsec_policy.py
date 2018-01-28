@@ -1,12 +1,47 @@
-from helpers_n_wrappers import container3, utils3
+"""
+BSD 3-Clause License
+
+Copyright (c) 2018, Maël Kimmerlin, Aalto University, Finland
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+* Redistributions of source code must retain the above copyright notice, this
+  list of conditions and the following disclaimer.
+
+* Redistributions in binary form must reproduce the above copyright notice,
+  this list of conditions and the following disclaimer in the documentation
+  and/or other materials provided with the distribution.
+
+* Neither the name of the copyright holder nor the names of its
+  contributors may be used to endorse or promote products derived from
+  this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+"""
+
+
 from aiohttp import web
 import uuid
-import models
-import utils
 import traceback
 import logging
+from marshmallow import Schema, fields, post_load, ValidationError, validate
 
-from marshmallow import Schema, fields, post_load, ValidationError
+import utils
+
+from helpers_n_wrappers import container3, utils3
+
+
 
 class Ipsec_policy(container3.ContainerNode):
 
@@ -28,21 +63,21 @@ class Ipsec_policy(container3.ContainerNode):
 class Ipsec_policy_schema(Schema):
     name = fields.Str()
     node_id = fields.Str(validate=utils.validate_uuid)
-    transform_protocol = fields.Str(validate=utils.create_validation_str([
-        "esp","ah"
-    ]))
-    encapsulation_mode = fields.Str(validate=utils.create_validation_str([
-        "tunnel","transport"
-    ]))
-    encryption_algorithm = fields.Str(validate=utils.create_validation_str([
-        "aes128","aes192","aes256",
-    ]))
-    auth_algorithm = fields.Str(validate=utils.create_validation_str([
-        "sha","sha1","sha256"
-    ]))
-    pfs = fields.Str(validate=utils.create_validation_str([
-        "modp1024","modp1536","modp2048","modp3072"
-    ]))
+    transform_protocol = fields.Str(validate=validate.OneOf(
+        ["esp","ah"]
+        ))
+    encapsulation_mode = fields.Str(validate=validate.OneOf(
+        ["tunnel","transport"]
+        ))
+    encryption_algorithm = fields.Str(validate=validate.OneOf(
+        ["aes128","aes192","aes256"]
+        ))
+    auth_algorithm = fields.Str(validate=validate.OneOf(
+        ["sha","sha1","sha256"]
+        ))
+    pfs = fields.Str(validate=validate.OneOf(
+        ["modp1024","modp1536","modp2048","modp3072"]
+        ))
     lifetime_value = fields.Integer()
     
     @post_load
@@ -54,43 +89,17 @@ class Ipsec_policy_schema(Schema):
         
         
 async def get_ipsec_policies(data_store, amqp, node_id=None):
-    
-    schema = Ipsec_policy_schema()
-    if node_id:
-        if not data_store.has((utils.KEY_POLICY_IPSEC, node_id)):
-            raise web.HTTPNotFound(text = "Ike Policy Not Found")
-        ipsec_policy = data_store.get(node_id)
-        ipsec_policies_str = schema.dumps(ipsec_policy).data
-    else:
-        ipsec_policies = data_store.lookup_list(utils.KEY_POLICY_IPSEC)
-        ipsec_policies_str = schema.dumps(ipsec_policies, many=True).data
-    raise web.HTTPOk(content_type="application/json",
-        text = ipsec_policies_str
-    )
-    
+    ret = utils.get_objects(data_store, amqp, Ipsec_policy_schema, 
+        utils.KEY_POLICY_IPSEC, node_id=None
+        )
+    raise web.HTTPOk(content_type="application/json", text = ret)    
     
 async def create_ipsec_policy(data_store, amqp, **kwargs):
-    schema = Ipsec_policy_schema()
-    ipsec_policy, errors = schema.load(kwargs)
-    if errors:
-        raise web.HTTPBadRequest( content_type="application/json",
-            text = "{}".format(errors)
-        )
-    data_store.add(ipsec_policy)
-    ipsec_policy_str = schema.dumps(ipsec_policy).data
-    data_store.save(ipsec_policy)
-    raise web.HTTPCreated(content_type="application/json",
-        text = ipsec_policy_str
-    )
+    ret = utils.create_object(data_store, amqp, Ipsec_policy_schema, kwargs)
+    raise web.HTTPCreated(content_type="application/json", text = ret)
     
     
 async def delete_ipsec_policy(data_store, amqp, node_id):
-    if not data_store.has((utils.KEY_POLICY_IPSEC, node_id)):
-        raise web.HTTPNotFound(text = "Ipsec Policy Not Found")
-    if data_store.has((utils.KEY_IN_USE, node_id)):
-        raise web.HTTPConflict(text = "Ipsec Policy in use")
-    ipsec_policy = data_store.get(node_id)
-    data_store.remove(ipsec_policy)
-    data_store.delete(node_id)
+    utils.delete_object(data_store, amqp, node_id, utils.KEY_POLICY_IPSEC)
     raise web.HTTPOk()
 

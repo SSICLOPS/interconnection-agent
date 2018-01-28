@@ -210,7 +210,7 @@ class Ofctl_manager(object):
             "".join(["table={}, priority=10, ".format(TABLE_VLAN_CHECK),
                 "tun_id=0x{:x}{:x}, ".format(expansion["peer_vni"], 
                     self.self_vni
-                    )
+                    ),
                 "vlan_vid=0x1{:03x}/0x1fff".format(expansion["inter_id_in"])
                 ])
             ])
@@ -225,8 +225,8 @@ class Ofctl_manager(object):
             actions.append("resubmit(,{})".format(TABLE_ROUTING))
         actions_str = ",".join(actions)
         utils.execute_list(["ovs-ofctl", "mod-flows", "--strict", self.dp_tun, 
-                "table={}, priority=10, ".format(TABLE_MULTICAST),
-                "vlan_vid=0x1{:03x}/0x1fff, ".format(local_vlan),
+            " ".join(["table={}, priority=10,".format(TABLE_MULTICAST),
+                "vlan_vid=0x1{:03x}/0x1fff,".format(local_vlan),
                 "actions={}".format(actions_str)
                 ])
             ])

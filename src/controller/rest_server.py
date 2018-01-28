@@ -1,14 +1,45 @@
+"""
+BSD 3-Clause License
+
+Copyright (c) 2018, Maël Kimmerlin, Aalto University, Finland
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+* Redistributions of source code must retain the above copyright notice, this
+  list of conditions and the following disclaimer.
+
+* Redistributions in binary form must reproduce the above copyright notice,
+  this list of conditions and the following disclaimer in the documentation
+  and/or other materials provided with the distribution.
+
+* Neither the name of the copyright holder nor the names of its
+  contributors may be used to endorse or promote products derived from
+  this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+"""
+
 from aiohttp import web
 import json
 import logging
-import models
 import traceback
-from common import amqp_client
 import uuid
-import data_container
 import functools
-import api_interface
 
+from common import amqp_client
+import data_container
+import api_interface
 
 
 async def process(req, callback, url_args = [], required_args = [], 
@@ -22,11 +53,11 @@ async def process(req, callback, url_args = [], required_args = [],
         # If no body but required arguments, return 400
         if not body_data and required_args:
             raise web.HTTPBadRequest( content_type="plain/text",
-                text="A JSON body is expected with the required parameters : \n{}\
-\nand the optional parameters :\n{}\n".format(
-                    required_args, opt_args
+                text= " ".join(["A JSON body is expected with the required",
+                    "parameters : \n{}\nand the".format(required_args),
+                    "optional parameters :\n{}\n".format(opt_args)
+                    ])
                 )
-            )
             
         #Try to load the body from json
         if body_data:
@@ -38,12 +69,12 @@ async def process(req, callback, url_args = [], required_args = [],
         for k in required_args:
             if k not in req_body:
                 raise web.HTTPBadRequest( content_type="plain/text",
-                    text="{} is a required parameter\
-\nA JSON body is expected with the required parameters : \n\
-{}\n and the optional parameters :\n{}\n".format(k,
-                        required_args, opt_args
+                    text=" ".join(["{} is a required parameter".format(k),
+                        "\nA JSON body is expected with the required parameters",
+                        ": \n{}\n and the optional".format(required_args),
+                        "parameters :\n{}\n".format(opt_args)
+                        ])
                     )
-                )
             arguments[k] = req_body[k]
             
         # Optional arguments (None keeps the arguments in correct position)
@@ -66,27 +97,25 @@ async def process(req, callback, url_args = [], required_args = [],
         resp = await callback(**arguments)
         
         if isinstance(resp, web.Response):
-            return resp
+            raise resp
         
     except Exception as e:
         if isinstance(e, web.Response):
             del arguments["amqp"]
             del arguments["data_store"]
-            logging.debug("REST API : {} endpoint {} called with parameters {} \
-and returned {}".format( req.method, req.path, arguments,
-                    e.status
-                )
-            )
+            logging.debug(" ".join(["REST API : {}".format(req.method),
+                "endpoint {} called with parameters".format(req.path),
+                "{} and returned {}".format( arguments, e.status)
+                ]))
             return e
-        else:
-            traceback.print_exc()
+
     del arguments["amqp"]
     del arguments["data_store"]
-    logging.error("REST API : {} endpoint {} / {} called with parameters {} \
-and didn't complete properly".format( req.method, req.path, callback.__name__,
-            arguments
-        )
-    )
+    logging.error(" ".join(["REST API : {}".format(req.method),
+        "endpoint {} called with parameters".format(req.path),
+        "{} and didn't complete properly".format( arguments)
+        ]))
+
     return web.HTTPInternalServerError(text="Unknown error")
         
 
@@ -107,8 +136,8 @@ def set_rest_routes(router):
                 url_args = route_dict["url_args"], 
                 required_args = route_dict["required_args"], 
                 opt_args = route_dict["opt_args"]
+                )
             )
-        )
 
 
 

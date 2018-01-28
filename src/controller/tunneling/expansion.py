@@ -1,14 +1,51 @@
-from helpers_n_wrappers import container3, utils3
+"""
+BSD 3-Clause License
+
+Copyright (c) 2018, Maël Kimmerlin, Aalto University, Finland
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+* Redistributions of source code must retain the above copyright notice, this
+  list of conditions and the following disclaimer.
+
+* Redistributions in binary form must reproduce the above copyright notice,
+  this list of conditions and the following disclaimer in the documentation
+  and/or other materials provided with the distribution.
+
+* Neither the name of the copyright holder nor the names of its
+  contributors may be used to endorse or promote products derived from
+  this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+"""
+
+
+
 from aiohttp import web
 import uuid
-
-import utils
+from marshmallow import Schema, fields, post_load, ValidationError, validate
 import traceback
 import logging
+
+
+import utils
 from tunneling import network
 
-from marshmallow import Schema, fields, post_load, ValidationError, validate
 
+from helpers_n_wrappers import container3, utils3
+
+#Mapping from objects to dictionnary for AMQP
 _expansion_args = {
     "node_id": ("expansion", "node_id"),
     "network_id": ("network", "node_id"),
@@ -60,68 +97,44 @@ class Expansion(container3.ContainerNode):
         keys.append((utils.KEY_EXPANSION, False))
         keys.append((self.node_id, True))
         keys.append(((utils.KEY_EXPANSION, self.node_id), True))
-        keys.append(((utils.KEY_EXPANSION, self.network_id, self.tunnel_id), True))
-        keys.append(((utils.KEY_IN_USE, self.network_id
-            ), False
-        ))
-        keys.append(((utils.KEY_IN_USE, utils.KEY_EXPANSION, self.network_id
-            ), False
-        ))
+        keys.append(((utils.KEY_EXPANSION, self.network_id, self.tunnel_id), 
+            True
+            ))
+        keys.append(((utils.KEY_IN_USE, self.network_id), False))
+        keys.append(((utils.KEY_IN_USE, utils.KEY_EXPANSION, self.network_id), 
+            False
+            ))
         
-        keys.append(((utils.KEY_IN_USE, self.tunnel_id
-            ), False
-        ))
-        keys.append(((utils.KEY_IN_USE, utils.KEY_EXPANSION, self.tunnel_id
-            ), False
-        ))
+        keys.append(((utils.KEY_IN_USE, self.tunnel_id), 
+            False
+            ))
+        keys.append(((utils.KEY_IN_USE, utils.KEY_EXPANSION, self.tunnel_id), 
+            False
+            ))
         return keys
         
         
 async def get_expansions(data_store, amqp, node_id=None, network_id=None):
-    
-    schema = Expansion_schema()
-    if node_id:
-        if not data_store.has((utils.KEY_EXPANSION, node_id)):
-            raise web.HTTPNotFound(text = "Expansion Not Found")
-        expansion = data_store.get(node_id)
-        expansions_str = schema.dumps(expansion).data
-    elif network_id:
+    if network_id:
         if not data_store.has((utils.KEY_NETWORK, network_id)):
             raise web.HTTPNotFound(text = "Network Not Found")
         expansions = data_store.lookup_list((utils.KEY_IN_USE, network_id))
-        expansions_str = schema.dumps(expansions, many=True).data
+        ret = Expansion_schema().dumps(expansions, many=True).data
     else:
-        expansions = data_store.lookup_list(utils.KEY_EXPANSION)
-        expansions_str = schema.dumps(expansions, many=True).data
-    raise web.HTTPOk(content_type="application/json",
-        text = expansions_str
-    )
+        ret = utils.get_objects(data_store, amqp, Expansion_schema, 
+            utils.KEY_EXPANSION, node_id=None
+            )
+    raise web.HTTPOk(content_type="application/json", text = ret)
     
     
 async def create_expansion(data_store, amqp, **kwargs):
-    schema = Expansion_schema()
-    expansion, errors = schema.load(kwargs)
-    if errors:
-        raise web.HTTPBadRequest( content_type="application/json",
-            text = "{}".format(errors)
-        )
-    data_store.add(expansion)
-    expansion_str = schema.dumps(expansion).data
-    data_store.save(expansion)
+    ret = utils.create_object(data_store, amqp, Expansion_schema, kwargs)
     await send_create_expansion(data_store, amqp, expansion)
-    raise web.HTTPAccepted(content_type="application/json",
-        text = expansion_str
-    )
+    raise web.HTTPAccepted(content_type="application/json", text = ret)
     
     
 async def delete_expansion(data_store, amqp, node_id):
-    if not data_store.has((utils.KEY_EXPANSION, node_id)):
-        raise web.HTTPNotFound(text = "Expansion Not Found")
-    if data_store.has((utils.KEY_IN_USE, node_id)):
-        raise web.HTTPConflict(text = "Expansion in use")
-    expansion = data_store.get(node_id)
-    data_store.remove(expansion)
-    data_store.delete(node_id)
+    utils.delete_object(data_store, amqp, node_id, utils.KEY_EXPANSION)
     await send_delete_expansion(data_store, amqp, expansion)
     raise web.HTTPAccepted()
     
@@ -132,19 +145,12 @@ async def delete_expansion(data_store, amqp, node_id):
 async def send_create_expansion(data_store, amqp, expansion):
     await send_action_expansion(data_store, amqp, utils.ACTION_ADD_EXPANSION, 
         expansion
-    )
+        )
 
 async def send_delete_expansion(data_store, amqp, expansion):
     await send_action_expansion(data_store, amqp, utils.ACTION_DEL_EXPANSION, 
         expansion
-    ) 
-
-async def ack_callback(payload, action):
-    logging.debug("{} completed {}successfully for expansion {}".format(
-        "Setup" if action["operation"]== utils.ACTION_ADD_EXPANSION else "Removal",
-        "un" if payload["operation"] == utils.ACTION_NACK else "",
-        action["kwargs"]["node_id"]
-    ))
+        ) 
     
 async def send_action_expansion(data_store, amqp, action, expansion):
     #Get the elements to send the action
@@ -158,7 +164,7 @@ async def send_action_expansion(data_store, amqp, action, expansion):
     
     agent_amqp = data_store.get((utils.KEY_AGENT, utils.KEY_AGENT_IP, 
         tunnel.self_ip
-    ))
+        ))
     
     #If we delete an expansion that was not applied, this is a No op.
     if action == utils.ACTION_DEL_EXPANSION and not expansion.applied:
@@ -167,16 +173,16 @@ async def send_action_expansion(data_store, amqp, action, expansion):
     #If we want to add an expansion in a node where the network is not, No op.
     if ( action == utils.ACTION_ADD_EXPANSION and 
             network_obj.cloud_network_id not in agent_amqp.networks
-        ):
+            ):
         logging.debug("Expansion {} not applicable, network not extended".format(
             expansion.node_id
-        ))
+            ))
         return
         
     #Pre-process the data
     data = convert_expansion(expansion = expansion, tunnel = tunnel,
         network = network_obj
-    )
+        )
     
     #If we add the expansion, but the network had not been yet propagated on 
     #that agent, propagate it now. If removing, flip the flag
@@ -184,7 +190,7 @@ async def send_action_expansion(data_store, amqp, action, expansion):
         if agent_amqp.node_uuid not in network_obj.agents_deployed:
             await network.send_create_network(data_store, amqp, agent_amqp, 
                 network_obj
-            )
+                )
         expansion.applied = True
     else:
         expansion.applied = False
@@ -192,16 +198,8 @@ async def send_action_expansion(data_store, amqp, action, expansion):
     #Send the actual action
     payload = {"operation":action,
         "kwargs": data
-    }
+        }
     await amqp.publish_action(payload=payload, 
-        node = agent_amqp, callback = ack_callback,
-    )
+        node = agent_amqp, callback = utils.ack_callback,
+        )
  
-"""
-Need to do :
-Y - when created, check if it can be applied. if not, don't do anything
-Y - when agent reloads, check if it can be applied. if not, don't do anything
-- when networks change, check if new networks have applicable expansions, apply them,
-  if old networks disappeared, remove the expansion related to those networks.
-  also remove the network!  
-"""

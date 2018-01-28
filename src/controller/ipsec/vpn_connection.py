@@ -1,13 +1,47 @@
-from helpers_n_wrappers import container3, utils3
+"""
+BSD 3-Clause License
+
+Copyright (c) 2018, Maël Kimmerlin, Aalto University, Finland
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+* Redistributions of source code must retain the above copyright notice, this
+  list of conditions and the following disclaimer.
+
+* Redistributions in binary form must reproduce the above copyright notice,
+  this list of conditions and the following disclaimer in the documentation
+  and/or other materials provided with the distribution.
+
+* Neither the name of the copyright holder nor the names of its
+  contributors may be used to endorse or promote products derived from
+  this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+"""
+
 from aiohttp import web
 import uuid
-import models
-import utils
 import traceback
 import logging
+from marshmallow import Schema, fields, post_load, ValidationError, validate
 
-from marshmallow import Schema, fields, post_load, ValidationError
 
+from helpers_n_wrappers import container3, utils3
+import utils
+
+
+#translate objects into dictionnary for AMQP
 _jinja_con_args = {
     "node_id": ("connection", "node_id"),
     "dpd_action": ("connection", "dpd_action"),
@@ -31,7 +65,7 @@ _jinja_con_args = {
     "secret": ("connection", "secret"),
 }
 
-def convert_con_template(**kwargs):
+def _convert_con_template(**kwargs):
     con_args = {}
     for key in _jinja_con_args:
         object = kwargs[_jinja_con_args[key][0]]
@@ -58,11 +92,17 @@ class Vpn_connection(container3.ContainerNode):
         keys.append((self.node_id, True))
         keys.append(((utils.KEY_CONNECTION, self.node_id), True))
         keys.append(((utils.KEY_IN_USE, self.tunnel_id), False))
-        keys.append(((utils.KEY_IN_USE, utils.KEY_CONNECTION, self.tunnel_id), False))
+        keys.append(((utils.KEY_IN_USE, utils.KEY_CONNECTION, self.tunnel_id), 
+            False
+            ))
         keys.append(((utils.KEY_IN_USE, self.ike_policy_id), False))
-        keys.append(((utils.KEY_IN_USE, utils.KEY_CONNECTION, self.ike_policy_id), False))
+        keys.append(((utils.KEY_IN_USE, utils.KEY_CONNECTION, self.ike_policy_id), 
+            False
+            ))
         keys.append(((utils.KEY_IN_USE, self.ipsec_policy_id), False))
-        keys.append(((utils.KEY_IN_USE, utils.KEY_CONNECTION, self.ipsec_policy_id), False))
+        keys.append(((utils.KEY_IN_USE, utils.KEY_CONNECTION, self.ipsec_policy_id), 
+            False
+            ))
         
         return keys
     
@@ -73,14 +113,10 @@ class Vpn_connection_schema(Schema):
     tunnel_id = fields.Str(validate=utils.l2_validator)
     ike_policy_id = fields.Str(validate=utils.ike_validator)
     ipsec_policy_id = fields.Str(validate=utils.ipsec_validator)
-    dpd_action = fields.Str(validate=utils.create_validation_str([
-        "hold"
-    ]))
+    dpd_action = fields.Str(validate=validate.OneOf(["hold"]))
     dpd_interval = fields.Integer()
     dpd_timeout = fields.Integer()
-    initiator = fields.Str(validate=utils.create_validation_str([
-        "start"
-    ]))
+    initiator = fields.Str(validate=validate.OneOf(["start"]))
     secret = fields.Str()
     
     
@@ -90,64 +126,44 @@ class Vpn_connection_schema(Schema):
         
         
 async def get_vpn_connections(data_store, amqp, node_id=None):
-    
-    schema = Vpn_connection_schema()
-    if node_id:
-        if not data_store.has((utils.KEY_CONNECTION, node_id)):
-            raise web.HTTPNotFound(text = "VPN connection Not Found")
-        vpn_connection = data_store.get(node_id)
-        vpn_connections_str = schema.dumps(vpn_connection).data
-    else:
-        vpn_connections = data_store.lookup_list(utils.KEY_CONNECTION)
-        vpn_connections_str = schema.dumps(vpn_connections, many=True).data
-    raise web.HTTPOk(content_type="application/json",
-        text = vpn_connections_str
-    )
+    ret = utils.get_objects(data_store, amqp, Vpn_connection_schema, 
+        utils.KEY_CONNECTION, node_id=None
+        )
+    raise web.HTTPOk(content_type="application/json", text = ret)
     
     
 async def create_vpn_connection(data_store, amqp, **kwargs):
-    schema = Vpn_connection_schema()
-    vpn_connection, errors = schema.load(kwargs)
-    if errors:
-        raise web.HTTPBadRequest( content_type="application/json",
-            text = "{}".format(errors)
-        )
-    data_store.add(vpn_connection)
+    ret = utils.create_object(data_store, amqp, Vpn_connection_schema, kwargs)
     await send_create_connection(data_store, amqp, vpn_connection)
-    vpn_connection_str = schema.dumps(vpn_connection).data
-    data_store.save(vpn_connection)
     raise web.HTTPCreated(content_type="application/json",
         text = vpn_connection_str
     )
     
     
 async def delete_vpn_connection(data_store, amqp, node_id):
-    if not data_store.has((utils.KEY_CONNECTION, node_id)):
-        raise web.HTTPNotFound(text = "Vpn connection Not Found")
-    if data_store.has((utils.KEY_IN_USE, node_id)):
-        raise web.HTTPConflict(text = "Vpn connection in use")
-    vpn_connection = data_store.get(node_id)
-    data_store.remove(vpn_connection)
-    data_store.delete(vpn_connection)
+    utils.delete_object(data_store, amqp, node_id, utils.KEY_CONNECTION)
     await send_delete_connection(data_store, amqp, vpn_connection)
     raise web.HTTPOk()
     
 
 async def send_create_connection(data_store, amqp, connection):
     tunnel = data_store.get(connection.tunnel_id)
-    ike = data_store.get(connection.ike_policy_id)
-    ipsec = data_store.get(connection.ipsec_policy_id)
     if not data_store.has((utils.KEY_AGENT, utils.KEY_AGENT_IP, tunnel.self_ip)):
         return
+    
+    ike = data_store.get(connection.ike_policy_id)
+    ipsec = data_store.get(connection.ipsec_policy_id)
     agent_amqp = data_store.get((utils.KEY_AGENT, utils.KEY_AGENT_IP, 
         tunnel.self_ip
-    ))
-    data = convert_con_template(connection=connection, tunnel = tunnel,
+        ))
+    
+    data = _convert_con_template(connection=connection, tunnel = tunnel,
         ike = ike, ipsec = ipsec, self_id = agent_amqp.node_uuid
-    )
+        )
+    
     await send_action_connection(agent_amqp, amqp, utils.ACTION_ADD_CONNECTION, 
         data
-    )
+        )
 
 async def send_delete_connection(data_store, amqp, connection):
     data = {"node_id":connection.node_id}
@@ -156,22 +172,17 @@ async def send_delete_connection(data_store, amqp, connection):
         return
     agent_amqp = data_store.get((utils.KEY_AGENT, utils.KEY_AGENT_IP, 
         tunnel.self_ip
-    ))
+        ))
+    
     await send_action_connection(agent_amqp, amqp, utils.ACTION_DEL_CONNECTION, 
         data
-    ) 
+        ) 
 
-async def ack_callback(payload, action):
-    logging.debug("{} completed {}successfully for connection {}".format(
-        "Setup" if action["operation"]== utils.ACTION_ADD_CONNECTION else "Removal", 
-        "un" if payload["operation"] == utils.ACTION_NACK else "",
-        action["kwargs"]["node_id"]
-    ))
     
 async def send_action_connection(agent_amqp, amqp, action, connection_args):
     payload = {"operation":action,
         "kwargs": connection_args
-    }
+        }
     await amqp.publish_action(payload=payload, 
-        node = agent_amqp, callback = ack_callback,
-    )
+        node = agent_amqp, callback = utils.ack_callback,
+        )

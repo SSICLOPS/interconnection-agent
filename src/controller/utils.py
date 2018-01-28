@@ -1,7 +1,41 @@
+"""
+BSD 3-Clause License
+
+Copyright (c) 2018, Maël Kimmerlin, Aalto University, Finland
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+* Redistributions of source code must retain the above copyright notice, this
+  list of conditions and the following disclaimer.
+
+* Redistributions in binary form must reproduce the above copyright notice,
+  this list of conditions and the following disclaimer in the documentation
+  and/or other materials provided with the distribution.
+
+* Neither the name of the copyright holder nor the names of its
+  contributors may be used to endorse or promote products derived from
+  this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+"""
+
 from marshmallow import ValidationError
 import uuid
 import ipaddress
 import functools
+from aiohttp import web
+import logging
 
 KEY_IN_USE = "KEY_IN_USE"
 KEY_AGENT = "KEY_AGENT"
@@ -37,13 +71,6 @@ def validate_uuid(uuid_str):
     except ValueError:
         raise ValidationError("{} is not a correct UUID".format(uuid_str))
     return True
-    
-def create_validation_str(list):
-    def func(element):
-        if element not in list:
-            raise ValidationError("{} not in {}".format(element, list))
-        return True
-    return func
 
 def validate_ip_address(address):
     try:
@@ -71,13 +98,54 @@ class Data_store_validator(object):
 data_store_validator = Data_store_validator()
 l2_validator = functools.partial(data_store_validator.check_in_data,
     KEY_L2_TUNNEL
-)
+    )
 ike_validator = functools.partial(data_store_validator.check_in_data,
     KEY_POLICY_IKE
-)
+    )
 ipsec_validator = functools.partial(data_store_validator.check_in_data,
     KEY_POLICY_IPSEC
-)
+    )
 network_validator = functools.partial(data_store_validator.check_in_data,
     KEY_NETWORK
-)
+    )
+
+
+def get_objects(data_store, amqp, obj_schema, key, node_id=None): 
+    schema = obj_schema()
+    if node_id:
+        if not data_store.has((key, node_id)):
+            raise web.HTTPNotFound(text = "Ike Policy Not Found")
+        objs = data_store.get(node_id)
+        objs_str = schema.dumps(objs).data
+    else:
+        objs = data_store.lookup_list(key)
+        objs_str = schema.dumps(objs, many=True).data
+    return objs_str
+    
+    
+def create_object(data_store, amqp, obj_schema, kwargs):
+    schema = obj_schema()
+    obj, errors = schema.load(kwargs)
+    if errors:
+        raise web.HTTPBadRequest( content_type="application/json",
+            text = "{}".format(errors)
+            )
+    data_store.add(obj)
+    obj_str = schema.dumps(obj).data
+    data_store.save(obj)
+    return obj_str
+    
+def delete_object(data_store, amqp, node_id, key):
+    if not data_store.has((key, node_id)):
+        raise web.HTTPNotFound(text = "Object Not Found")
+    if data_store.has((key, node_id)):
+        raise web.HTTPConflict(text = "Object in use")
+    obj = data_store.get(node_id)
+    data_store.remove(obj)
+    data_store.delete(node_id)
+    
+async def ack_callback(payload, action):
+    success = "un" if payload["operation"] == ACTION_NACK else ""
+    logging.debug("{} completed {}successfully for {}".format(
+        action["operation"], success, action["kwargs"]["node_id"]
+        ))

@@ -74,11 +74,8 @@ class Amqp_client(object):
             }
         
         #Initialize the agent
-        try:
-            utils3.set_attributes(self, override = False, **default_values)
-            utils3.set_attributes(self, override = True, **kwargs)
-        except:
-            traceback.print_exc()
+        utils3.set_attributes(self, override = False, **default_values)
+        utils3.set_attributes(self, override = True, **kwargs)
         
         if self. port is None:
             if self.ssl:

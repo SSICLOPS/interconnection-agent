@@ -1,9 +1,43 @@
-from common import amqp_client
+"""
+BSD 3-Clause License
+
+Copyright (c) 2018, Maël Kimmerlin, Aalto University, Finland
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+* Redistributions of source code must retain the above copyright notice, this
+  list of conditions and the following disclaimer.
+
+* Redistributions in binary form must reproduce the above copyright notice,
+  this list of conditions and the following disclaimer in the documentation
+  and/or other materials provided with the distribution.
+
+* Neither the name of the copyright holder nor the names of its
+  contributors may be used to endorse or promote products derived from
+  this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+"""
+
+
 import json
 import traceback
 import logging
-import agent
 import uuid
+
+from common import amqp_client
+import agent
 import utils
 
 
@@ -25,7 +59,7 @@ class Amqp_controller(amqp_client.Amqp_client):
         kwargs["exchange_name"] = amqp_client.AMQP_EXCHANGE_ACTIONS
         kwargs["routing_key"] = "{}{}".format(amqp_client.AMQP_KEY_ACTIONS, 
             node.node_uuid
-        )
+            )
         if callback:
             self.actions_list[action_uuid] = kwargs["payload"]
             self.callbacks_list[action_uuid] = callback
@@ -36,19 +70,17 @@ class Amqp_controller(amqp_client.Amqp_client):
         await self.publish_msg(**kwargs)
         
     async def action_callback(self, channel, body, envelope, properties):
-        try:
-            payload = json.loads(body.decode("utf-8"))
-            if "action_uuid" in payload :
-                if payload["action_uuid"] in self.actions_list:
-                    callback = self.callbacks_list[payload["action_uuid"]]
-                    if callback is not None:
-                        await callback(payload, 
-                            self.actions_list[payload["action_uuid"]]
+        payload = json.loads(body.decode("utf-8"))
+        if "action_uuid" in payload :
+            if payload["action_uuid"] in self.actions_list:
+                callback = self.callbacks_list[payload["action_uuid"]]
+                if callback is not None:
+                    await callback(payload, 
+                        self.actions_list[payload["action_uuid"]]
                         )
-                    del self.callbacks_list[payload["action_uuid"]]
-                    del self.actions_list[payload["action_uuid"]]
-        except:
-            traceback.print_exc()
+                del self.callbacks_list[payload["action_uuid"]]
+                del self.actions_list[payload["action_uuid"]]
+
                 
     async def heartbeat_callback(self, channel, body, envelope, properties):
         payload = json.loads(body.decode("utf-8"))
@@ -78,10 +110,7 @@ class Amqp_controller(amqp_client.Amqp_client):
                     self.data_store.updatekeys(agent_obj)
                     #THis should be set after the reload only, but needs to add all no_wait flags
                     agent_obj.loading.set()
-                    try:
-                        await agent_obj.reload(self.data_store, self)
-                    except:
-                        traceback.print_exc()
+                    await agent_obj.reload(self.data_store, self)
             
             # The runtime_id has changed unexpectedly, mark for kill
             elif ( agent_obj.runtime_id != payload["runtime_id"] ):
@@ -91,8 +120,8 @@ class Amqp_controller(amqp_client.Amqp_client):
                 logging.info(
                     "Agent {} restarted unexpectedly, killing it".format(
                         payload["node_uuid"]
+                        )
                     )
-                )
             
             # The agent keeps running normally, check for addresses updates
             else:
@@ -100,11 +129,11 @@ class Amqp_controller(amqp_client.Amqp_client):
                     #do something with the tunnels
                     await agent_obj.update_tunnels(self.data_store, self, 
                         agent_obj.addresses, payload["addresses"]
-                    )
+                        )
                 if agent_obj.networks != payload["networks"]:
                     await agent_obj.update_networks(self.data_store, self, 
                         agent_obj.networks, payload["networks"]
-                    )
+                        )
                     
         
         #If the agent was marked for kill, then send kill command
@@ -112,6 +141,6 @@ class Amqp_controller(amqp_client.Amqp_client):
             payload = {"operation":utils.ACTION_DIE}
             await self.publish_action(payload=payload, 
                 node = agent_obj, no_wait = True
-            )
+                )
 
     

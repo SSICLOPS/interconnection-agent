@@ -1,15 +1,50 @@
-from helpers_n_wrappers import container3
+"""
+BSD 3-Clause License
+
+Copyright (c) 2018, Maël Kimmerlin, Aalto University, Finland
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+* Redistributions of source code must retain the above copyright notice, this
+  list of conditions and the following disclaimer.
+
+* Redistributions in binary form must reproduce the above copyright notice,
+  this list of conditions and the following disclaimer in the documentation
+  and/or other materials provided with the distribution.
+
+* Neither the name of the copyright holder nor the names of its
+  contributors may be used to endorse or promote products derived from
+  this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+"""
+
 import logging
-from ipsec import ike_policy, ipsec_policy, vpn_connection
-from tunneling import l2_tunnel, network, expansion
 import sys
 
+
+from ipsec import ike_policy, ipsec_policy, vpn_connection
+from tunneling import l2_tunnel, network, expansion
 import utils
 
+from helpers_n_wrappers import container3
 
+#Objects to restore, orders matter as there are dependencies
 _restores = ["ike_policies", "ipsec_policies", "tunnels", "connections", 
     "networks", "expansions"]
 
+#Types for the API
 _type_name_eq = {
     "tunnels" :     {"node_schema": l2_tunnel.L2_tunnel_schema,
         "node_key": utils.KEY_L2_TUNNEL, "node_type_name": "tunnels"},
@@ -23,7 +58,10 @@ _type_name_eq = {
         "node_key": utils.KEY_POLICY_IPSEC,"node_type_name": "ipsec_policies"},
     "expansions" :       {"node_schema": expansion.Expansion_schema, 
         "node_key": utils.KEY_EXPANSION,"node_type_name": "expansions"},
-}
+    }
+
+
+#Class names to API types    
 _type_eq = {
     "L2_tunnel" :      _type_name_eq["tunnels"],
     "Network" :        _type_name_eq["networks"],
@@ -31,7 +69,7 @@ _type_eq = {
     "Ike_policy" :     _type_name_eq["ike_policies"],
     "Ipsec_policy" :   _type_name_eq["ipsec_policies"],
     "Expansion" :      _type_name_eq["expansions"],
-}
+    }
 
 
 
@@ -123,7 +161,7 @@ class Data_container(container3.Container):
             if errors:
                 logging.error("Error while loading {} data : {}".format(
                     node_type, errors
-                ))
+                    ))
                 sys.exit()
             objects.append(data)
         
@@ -133,8 +171,8 @@ class Data_container(container3.Container):
                     self.add(node)
                 except Exception as e:
                     logging.error("Error while loading node {} : {}".format(
-                    node.node_id, e.args
-                    ))
+                        node.node_id, e.args
+                        ))
                     sys.exit()
             
     def save(self, node_id):

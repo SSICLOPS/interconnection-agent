@@ -30,17 +30,28 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 """
 
-import json
+import os
 
-class Storage_backend_json(object):
+class Input_error(Exception):
+    pass
 
-    def __init__(self, filename):
-        self.filename = filename
-
-    def save(self, data):
-        with open(self.filename, "w") as file:
-            json.dump(data, file)
-
-    def load(self):
-        with open(self.filename, "r") as file:
-            return json.load(file)
+def get_filename(config, section, file):
+        filename = config.get(section, file)
+        filename_tmp = filename
+        
+        #Absolute path, use as is
+        if filename.startswith("/"):
+            if not os.path.isfile(filename):
+                raise Input_error(filename + " does not exist")
+            return filename
+        
+        #Relative path: 
+        # if a work directory is given, use this, otherwise use the 
+        #current directory
+        filename_tmp = filename
+        
+        #Check if it exists
+        if not os.path.isfile(filename_tmp):
+            raise Input_error(filename + " does not exist")
+        
+        return filename_tmp
