@@ -309,8 +309,8 @@ class Ovs_manager(object):
             
             #Create the exec list based on the switch and version of OpenStack
             exec_list = ['ovs-ofctl', 'dump-flows']
+            exec_list.append(self.opstk_bridge)
             if self.opstk_bridge == "br-tun":
-                exec_list.append(self.opstk_bridge)
                 pattern_segId = _pattern_segId_tun
                 pattern_vlanId = _pattern_vlanId_tun
             if self.version == 13:    

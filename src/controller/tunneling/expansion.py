@@ -172,7 +172,8 @@ async def send_action_expansion(data_store, amqp, action, expansion):
     
     #If we want to add an expansion in a node where the network is not, No op.
     if ( action == utils.ACTION_ADD_EXPANSION and 
-            network_obj.cloud_network_id not in agent_amqp.networks
+            network_obj.cloud_network_id not in agent_amqp.networks and
+            not agent_amqp.standalone
             ):
         logging.debug("Expansion {} not applicable, network not extended".format(
             expansion.node_id

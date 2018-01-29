@@ -134,7 +134,10 @@ class Agent(object):
         network_id = kwargs["node_id"]
         self.networks[network_id] = kwargs
         seg_id = kwargs["cloud_network_id"]
-        vlan = self.networks_mapping[seg_id]
+        if self.standalone:
+            vlan = seg_id
+        else:
+            vlan = self.networks_mapping[seg_id]
         self.networks[network_id]["vlan"] = vlan
         
         #Add the namespace ports on the switches
