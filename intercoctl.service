@@ -1,0 +1,15 @@
+[Unit]
+Description=OpenStack cloud interconnection controller
+After=mysql.service openvswitch-switch.service
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/interco/path.conf
+ExecStart=/usr/bin/python3 ${PYTHONPATH}/controller/controller.py -c /etc/interco/controller.conf
+TimeoutStopSec=6
+KillSignal=SIGINT
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+

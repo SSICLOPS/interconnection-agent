@@ -31,8 +31,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 """
 
 from pyroute2 import IPRoute, netns, netlink, NetNS, protocols
-import parse
-import platform
 from socket import AF_INET
 
 IN_PORT_ROOT = "vethin{}"
