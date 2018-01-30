@@ -130,7 +130,10 @@ def create_object(data_store, amqp, obj_schema, kwargs):
         raise web.HTTPBadRequest( content_type="application/json",
             text = "{}".format(errors)
             )
-    data_store.add(obj)
+    try:
+        data_store.add(obj)
+    except KeyError as e:
+        raise web.HTTPConflict(text = e.args)
     obj_str = schema.dumps(obj).data
     data_store.save(obj)
     return obj_str, obj
