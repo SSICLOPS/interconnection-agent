@@ -6,3 +6,4 @@ marshmallow
 asyncio
 aiohttp
 aioamqp
+jinja2

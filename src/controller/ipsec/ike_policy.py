@@ -33,7 +33,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from aiohttp import web
 import uuid
-import traceback
 import logging
 from marshmallow import Schema, fields, post_load, ValidationError, validate
 
@@ -89,7 +88,7 @@ async def get_ike_policies(data_store, amqp, node_id=None):
     
     
 async def create_ike_policy(data_store, amqp, **kwargs):
-    ret = utils.create_object(data_store, amqp, Ike_policy_schema, kwargs)
+    ret, _ = utils.create_object(data_store, amqp, Ike_policy_schema, kwargs)
     raise web.HTTPCreated(content_type="application/json", text = ret)
     
     

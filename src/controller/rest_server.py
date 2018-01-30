@@ -33,9 +33,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 from aiohttp import web
 import json
 import logging
-import traceback
 import uuid
 import functools
+import traceback
 
 from common import amqp_client
 import data_container
@@ -45,13 +45,19 @@ import api_interface
 async def process(req, callback, url_args = [], required_args = [], 
     opt_args = []):
     
+    req_body = {}
     try:
         arguments = {"data_store": req.app["data"], "amqp":req.app["amqp"]}
+        
         # Get the arguments from the body
-        body_data = await req.text()
+        if req.method == "POST":
+            if req.content_type == "application/x-www-form-urlencoded":
+                req_body = dict(await req.post())
+            elif req.content_type == "application/json":
+                req_body = await req.json()
         
         # If no body but required arguments, return 400
-        if not body_data and required_args:
+        if not req_body and required_args:
             raise web.HTTPBadRequest( content_type="plain/text",
                 text= " ".join(["A JSON body is expected with the required",
                     "parameters : \n{}\nand the".format(required_args),
@@ -59,11 +65,6 @@ async def process(req, callback, url_args = [], required_args = [],
                     ])
                 )
             
-        #Try to load the body from json
-        if body_data:
-            req_body = json.loads(body_data)
-        else:
-            req_body = {}
             
         # Required arguments. If missing, return 400
         for k in required_args:
@@ -108,6 +109,8 @@ async def process(req, callback, url_args = [], required_args = [],
                 "{} and returned {}".format( arguments, e.status)
                 ]))
             return e
+        else:
+            logging.error(traceback.format_exc())
 
     del arguments["amqp"]
     del arguments["data_store"]

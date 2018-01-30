@@ -32,7 +32,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from aiohttp import web
 import uuid
-import traceback
 import logging
 from marshmallow import Schema, fields, post_load, ValidationError, validate
 
@@ -43,12 +42,15 @@ import utils
 
 #translate objects into dictionnary for AMQP
 _jinja_con_args = {
+    "name": ("connection", "name"),
     "node_id": ("connection", "node_id"),
     "dpd_action": ("connection", "dpd_action"),
     "dpd_interval": ("connection", "dpd_interval"),
     "dpd_timeout": ("connection", "dpd_timeout"),
+    "initiator": ("connection", "initiator"),
     "self_ip": ("tunnel", "self_ip"),
     "peer_ip": ("tunnel", "peer_ip"),
+    "peer_name": ("tunnel", "name"),
     "peer_public_ip": ("tunnel", "peer_public_ip"),
     "peer_id": ("tunnel", "peer_id"),
     "ike_version": ("ike", "ike_version"),
@@ -56,16 +58,18 @@ _jinja_con_args = {
     "ike_auth_algorithm": ("ike", "auth_algorithm"),
     "ike_pfs": ("ike", "pfs"),
     "ike_lifetime": ("ike", "lifetime_value"),
+    "ike_name": ("ike", "name"),
     "ipsec_transform_protocol": ("ipsec", "transform_protocol"),
     "ipsec_encryption_algorithm": ("ipsec", "encryption_algorithm"),
     "ipsec_auth_algorithm": ("ipsec", "auth_algorithm"),
     "ipsec_pfs": ("ipsec", "pfs"),
     "ipsec_lifetime": ("ipsec", "lifetime_value"),
     "ipsec_encapsulation_mode": ("ipsec", "encapsulation_mode"),
+    "ipsec_name": ("ipsec", "name"),
     "secret": ("connection", "secret"),
 }
 
-def _convert_con_template(**kwargs):
+def convert_con_template(**kwargs):
     con_args = {}
     for key in _jinja_con_args:
         object = kwargs[_jinja_con_args[key][0]]
@@ -74,7 +78,8 @@ def _convert_con_template(**kwargs):
             con_args[key]=value
         except AttributeError:
             pass
-    con_args["self_id"]=kwargs["self_id"]
+    if "self_id" in con_args:
+        con_args["self_id"]=kwargs["self_id"]
     return con_args
 
 class Vpn_connection(container3.ContainerNode):
@@ -133,15 +138,15 @@ async def get_vpn_connections(data_store, amqp, node_id=None):
     
     
 async def create_vpn_connection(data_store, amqp, **kwargs):
-    ret = utils.create_object(data_store, amqp, Vpn_connection_schema, kwargs)
+    ret, vpn_connection = utils.create_object(data_store, amqp, Vpn_connection_schema, kwargs)
     await send_create_connection(data_store, amqp, vpn_connection)
     raise web.HTTPCreated(content_type="application/json",
-        text = vpn_connection_str
+        text = ret
     )
     
     
 async def delete_vpn_connection(data_store, amqp, node_id):
-    utils.delete_object(data_store, amqp, node_id, utils.KEY_CONNECTION)
+    vpn_connection = utils.delete_object(data_store, amqp, node_id, utils.KEY_CONNECTION)
     await send_delete_connection(data_store, amqp, vpn_connection)
     raise web.HTTPOk()
     
@@ -157,7 +162,7 @@ async def send_create_connection(data_store, amqp, connection):
         tunnel.self_ip
         ))
     
-    data = _convert_con_template(connection=connection, tunnel = tunnel,
+    data = convert_con_template(connection=connection, tunnel = tunnel,
         ike = ike, ipsec = ipsec, self_id = agent_amqp.node_uuid
         )
     

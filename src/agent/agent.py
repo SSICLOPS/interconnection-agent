@@ -37,7 +37,6 @@ import logging.config
 import logging
 import random
 import json
-import traceback
 import uuid
 
 from common import amqp_client

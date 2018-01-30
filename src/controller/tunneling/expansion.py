@@ -35,7 +35,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 from aiohttp import web
 import uuid
 from marshmallow import Schema, fields, post_load, ValidationError, validate
-import traceback
 import logging
 
 
@@ -51,6 +50,8 @@ _expansion_args = {
     "network_id": ("network", "node_id"),
     "cloud_network_id": ("network", "cloud_network_id"),
     "peer_vni": ("tunnel", "peer_vni"),
+    "peer_name": ("tunnel", "name"),
+    "tunnel_id": ("tunnel", "node_id"),
     "inter_id_in": ("expansion", "intercloud_id_in"),
     "inter_id_out": ("expansion", "intercloud_id_out")
 }
@@ -128,13 +129,13 @@ async def get_expansions(data_store, amqp, node_id=None, network_id=None):
     
     
 async def create_expansion(data_store, amqp, **kwargs):
-    ret = utils.create_object(data_store, amqp, Expansion_schema, kwargs)
+    ret, expansion = utils.create_object(data_store, amqp, Expansion_schema, kwargs)
     await send_create_expansion(data_store, amqp, expansion)
     raise web.HTTPAccepted(content_type="application/json", text = ret)
     
     
 async def delete_expansion(data_store, amqp, node_id):
-    utils.delete_object(data_store, amqp, node_id, utils.KEY_EXPANSION)
+    expansion = utils.delete_object(data_store, amqp, node_id, utils.KEY_EXPANSION)
     await send_delete_expansion(data_store, amqp, expansion)
     raise web.HTTPAccepted()
     

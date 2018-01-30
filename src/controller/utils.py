@@ -133,16 +133,17 @@ def create_object(data_store, amqp, obj_schema, kwargs):
     data_store.add(obj)
     obj_str = schema.dumps(obj).data
     data_store.save(obj)
-    return obj_str
+    return obj_str, obj
     
 def delete_object(data_store, amqp, node_id, key):
     if not data_store.has((key, node_id)):
         raise web.HTTPNotFound(text = "Object Not Found")
-    if data_store.has((key, node_id)):
+    if data_store.has((KEY_IN_USE, node_id)):
         raise web.HTTPConflict(text = "Object in use")
     obj = data_store.get(node_id)
     data_store.remove(obj)
     data_store.delete(node_id)
+    return obj
     
 async def ack_callback(payload, action):
     success = "un" if payload["operation"] == ACTION_NACK else ""

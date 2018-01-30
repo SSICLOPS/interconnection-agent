@@ -33,7 +33,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from aiohttp import web
 import uuid
-import traceback
 import logging
 from marshmallow import Schema, fields, post_load, ValidationError, validate
 
@@ -95,7 +94,7 @@ async def get_ipsec_policies(data_store, amqp, node_id=None):
     raise web.HTTPOk(content_type="application/json", text = ret)    
     
 async def create_ipsec_policy(data_store, amqp, **kwargs):
-    ret = utils.create_object(data_store, amqp, Ipsec_policy_schema, kwargs)
+    ret, _ = utils.create_object(data_store, amqp, Ipsec_policy_schema, kwargs)
     raise web.HTTPCreated(content_type="application/json", text = ret)
     
     

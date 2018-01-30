@@ -34,7 +34,6 @@ import uuid
 import asyncio
 import aioamqp
 import logging
-import traceback
 import json
 import random
 

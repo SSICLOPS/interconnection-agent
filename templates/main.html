@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <title>Interconnection</title>
+    </head>
+    <body>
+
+        <h2>Interconnection agent</h2>
+
+        <h3>IKE policies</h3>
+
+        <table border="1">
+            <tr>
+                <th><center>Id</center></th>
+                <th><center>Name</center></th>
+                <th><center>Version</center></th>
+                <th><center>Encryption</center></th>
+                <th><center>Authentication</center></th>
+                <th><center>PFS</center></th>
+                <th><center>Lifetime</center></th>
+                <th></th>
+            </tr>
+            {% for ike in ike_policies %}
+            <tr>
+                <td><center>{{ ike["node_id"] }}</center></td>
+                <td><center>{{ ike["name"] }}</center></td>
+                <td><center>{{ ike["ike_version"] }}</center></td>
+                <td><center>{{ ike["encryption_algorithm"] }}</center></td>
+                <td><center>{{ ike["auth_algorithm"] }}</center></td>
+                <td><center>{{ ike["pfs"] }}</center></td>
+                <td><center>{{ ike["lifetime_value"] }}</center></td>
+                <form method="POST" action="/gui/delete-ike/{{ ike["node_id"] }}">
+                    <td><center><input type="submit" value="Delete" style="font-weight: bold;"></center></td>
+                </form>
+            </tr>
+            {% endfor %}
+            <form method="POST" action="/gui/create-ike">
+                <tr>
+                    <td><center>None</center></td>
+                    <td><center><input type="text" name="name" size="5" style="border:none;"></center></td>
+                    <td><center>
+                        <select name="ike_version"> 
+                            <option value="ikev2" selected>ikev2</option>
+                        </select>
+                    </center></td>
+                    <td><center>
+                        <select name="encryption_algorithm"> 
+                            <option value="aes128">aes128</option>
+                            <option value="aes192">aes192</option>
+                            <option value="aes256" selected>aes256</option>
+                        </select>
+                    </center></td>
+                    <td><center>
+                        <select name="auth_algorithm"> 
+                            <option value="sha1" selected>sha1</option>
+                            <option value="sha256">sha256</option>
+                        </select>
+                    </center></td>
+                    <td><center>
+                        <select name="pfs"> 
+                            <option value="modp1024">modp1024</option>
+                            <option value="modp1536" selected>modp1536</option>
+                            <option value="modp2048">modp2048</option>
+                            <option value="modp3072">modp3072</option>
+                        </select>
+                    </center></td>
+                    <td><center><input type="text" name="lifetime_value" size="5" value="3600" style="border:none;"></center></td>
+                    <td><center><input type="submit" value="Create" style="font-weight: bold;"></center></td>
+                </tr>
+            </form>
+         </table>
+
+         <hr>
+         
+         <h3>IPSEC policies</h3>
+
+        <table border="1">
+            <tr>
+                <th><center>Id</center></th>
+                <th><center>Name</center></th>
+                <th><center>Transform protocol</center></th>
+                <th><center>Encapsulation mode</center></th>
+                <th><center>Encryption</center></th>
+                <th><center>Authentication</center></th>
+                <th><center>PFS</center></th>
+                <th><center>Lifetime</center></th>
+                <th></th>
+            </tr>
+            {% for ipsec in ipsec_policies %}
+            <tr>
+                <td><center>{{ ipsec["node_id"] }}</center></td>
+                <td><center>{{ ipsec["name"] }}</center></td>
+                <td><center>{{ ipsec["transform_protocol"] }}</center></td>
+                <td><center>{{ ipsec["encapsulation_mode"] }}</center></td>
+                <td><center>{{ ipsec["encryption_algorithm"] }}</center></td>
+                <td><center>{{ ipsec["auth_algorithm"] }}</center></td>
+                <td><center>{{ ipsec["pfs"] }}</center></td>
+                <td><center>{{ ipsec["lifetime_value"] }}</center></td>
+                <form method="POST" action="/gui/delete-ipsec/{{ ipsec.node_id }}">
+                    <td><center><input type="submit" value="Delete" style="font-weight: bold;"></center></td>
+                </form>
+            </tr>
+            {% endfor %}
+            <form method="POST" action="/gui/create-ipsec">
+                <tr>
+                    <td><center>None</center></td>
+                    <td><center><input type="text" name="name" size="5" style="border:none;"></center></td>
+                    <td><center>
+                        <select name="transform_protocol"> 
+                            <option value="esp" selected>esp</option>
+                            <option value="ah">ah</option>
+                        </select>
+                    </center></td>
+                    <td><center>
+                        <select name="encapsulation_mode"> 
+                            <option value="transport" selected>transport</option>
+                            <option value="tunnel">tunnel</option>
+                        </select>
+                    </center></td>
+                    <td><center>
+                        <select name="encryption_algorithm"> 
+                            <option value="aes128">aes128</option>
+                            <option value="aes192">aes192</option>
+                            <option value="aes256" selected>aes256</option>
+                        </select>
+                    </center></td>
+                    <td><center>
+                        <select name="auth_algorithm"> 
+                            <option value="sha1" selected>sha1</option>
+                            <option value="sha256">sha256</option>
+                        </select>
+                    </center></td>
+                    <td><center>
+                        <select name="pfs"> 
+                            <option value="modp1024">modp1024</option>
+                            <option value="modp1536" selected>modp1536</option>
+                            <option value="modp2048">modp2048</option>
+                            <option value="modp3072">modp3072</option>
+                        </select>
+                    </center></td>
+                    <td><center><input type="text" name="lifetime_value" size="5" value="3600" style="border:none;"></center></td>
+                    <td><center><input type="submit" value="Create" style="font-weight: bold;"></center></td>
+                </tr>
+            </form>
+        </table>
+        
+        <hr>
+
+        
+        <h3>Layer2 tunnels</h3>
+
+        <table border="1">
+            <tr>
+                <th><center>Id</center></th>
+                <th><center>Name</center></th>
+                <th><center>Cloud IP address</center></th>
+                <th><center>Peer ID</center></th>
+                <th><center>Peer IP address</center></th>
+                <th><center>Peer public IP address</center></th>
+                <th><center>Peer VNI</center></th>
+                <th><center>Type</center></th>
+                <th><center>Enabled</center></th>
+                <th></th>
+            </tr>
+            {% for tunnel in tunnels %}
+            <tr>
+                <td><center>{{ tunnel["node_id"] }}</center></td>
+                <td><center>{{ tunnel["name"] }}</center></td>
+                <td><center>{{ tunnel["self_ip"] }}</center></td>
+                <td><center>{{ tunnel["peer_id"] }}</center></td>
+                <td><center>{{ tunnel["peer_ip"] }}</center></td>
+                <td><center>{{ tunnel["peer_public_ip"] }}</center></td>
+                <td><center>{{ tunnel["peer_vni"] }}</center></td>
+                <td><center>{{ tunnel["type"] }}</center></td>
+                <td><center>{{ tunnel["enabled"] }}</center></td>
+                <form method="POST" action="/gui/delete-tunnel/{{ tunnel.node_id }}">
+                    <td><center><input type="submit" value="Delete" style="font-weight: bold;"></center></td>
+                </form>
+            </tr>
+            {% endfor %}
+
+            <form method="POST" action="/gui/create-tunnel">
+                <tr>
+                    <td><center>None</center></td>
+                    <td><center><input type="text" name="name" size="5" style="border:none;"></center></td>
+                    <td><center>
+                        <select name="self_ip"> 
+                            {% for agent in agents %}{% for ip in agent.addresses %}
+                            <option value="{{ ip }}" >{{ ip }}</option>
+                            {% endfor %}{% endfor %}
+                        </select>
+                    </center></td>
+                    <td><center><input type="text" name="peer_id" size="5" style="border:none;"></center></td>
+                    <td><center><input type="text" name="peer_ip" size="5" style="border:none;"></center></td>
+                    <td><center><input type="text" name="peer_public_ip" size="5" style="border:none;"></center></td>
+                    <td><center><input type="text" name="peer_vni" size="5" style="border:none;"></center></td>
+                    <td><center>
+                        <select name="type"> 
+                            <option value="gre" selected>GRE</option>
+                            <option value="vxlan" selected>VXLAN</option>
+                        </select>
+                    </center></td>
+                    <td><center>
+                        <select name="enabled"> 
+                            <option value="True" selected>yes</option>
+                            <option value="False">no</option>
+                        </select>
+                    </center></td>
+                    <td><center><input type="submit" value="Create" style="font-weight: bold;"></center></td>
+                </tr>
+            </form>
+        </table>
+
+
+        <hr>
+        <h3>IPSEC Connections</h3>
+
+        <table border="1">
+            <tr>
+                <th><center>Id</center></th>
+                <th><center>Name</center></th>
+                <th><center>IKE policy</center></th>
+                <th><center>IPSEC policy</center></th>
+                <th><center>L2 link</center></th>
+                <th><center>Secret</center></th>
+                <th><center>dpd_action</center></th>
+                <th><center>dpd_interval</center></th>
+                <th><center>dpd_timeout</center></th>
+                <th><center>initiator</center></th>
+                <th></th>
+ 
+            </tr>
+            {% for con in connections %}
+            <tr>
+                <td><center>{{ con["node_id"] }}</center></td>
+                <td><center>{{ con["name"] }}</center></td>
+                <td><center>{{ con["ike_name"] }}</center></td>
+                <td><center>{{ con["ipsec_name"] }}</center></td>
+                <td><center>{{ con["peer_name"] }}</center></td>
+                <td><center>{{ con["secret"] }}</center></td>
+                <td><center>{{ con["dpd_action"] }}</center></td>
+                <td><center>{{ con["dpd_interval"] }}</center></td>
+                <td><center>{{ con["dpd_timeout"] }}</center></td>
+                <td><center>{{ con["initiator"] }}</center></td>
+                <form method="POST" action="/gui/delete-connection/{{ con.node_id }}">
+                    <td><center><input type="submit" value="Delete" style="font-weight: bold;"></center></td>
+                </form>
+            </tr>
+            {% endfor %}
+            <form method="POST" action="/gui/create-connection">
+                <tr>
+                    <td><center>None</center></td>
+                    <td><center><input type="text" name="name" size="5" style="border:none;"></center></td>
+                    <td><center>
+                        <select name="ike_policy_id"> 
+                            {% for ike in ike_policies %}
+                            <option value="{{ ike["node_id"] }}">{{ ike["name"] }}</option>
+                            {% endfor %}
+                        </select>
+                    </center></td>
+                    <td><center>
+                        <select name="ipsec_policy_id"> 
+                            {% for ipsec in ipsec_policies %}
+                            <option value="{{ ipsec["node_id"] }}">{{ ipsec["name"] }}</option>
+                            {% endfor %}
+                        </select>
+                    </center></td>
+                    <td><center>
+                        <select name="tunnel_id"> 
+                            {% for tunnel in tunnels %}
+                            <option value="{{ tunnel["node_id"] }}">{{ tunnel["name"] }}</option>
+                            {% endfor %}
+                        </select>
+                    </center></td>
+                    <td><center><input type="password" name="secret" size="5" style="border:none;"></center></td>
+                    <td><center>
+                        <select name="dpd_action"> 
+                            <option value="hold" selected>hold</option>
+                        </select>
+                    </center></td>
+                    <td><center><input type="text" name="dpd_interval" size="5" value="30" style="border:none;"></center></td>
+                    <td><center><input type="text" name="dpd_timeout" size="5" value="120" style="border:none;"></center></td>
+                    <td><center>
+                        <select name="initiator"> 
+                            <option value="start" selected>start</option>
+                        </select>
+                    </center></td>
+                    <td><center><input type="submit" value="Create" style="font-weight: bold;"></center></td>
+                </tr>
+            </form>
+        </table>
+         
+        <hr>
+
+         
+        
+        <h3>Virtual Networks</h3>
+
+        <table border="1">
+            <tr>
+                <th><center>Id</center></th>
+                <th><center>Name</center></th>
+                <th><center>Cloud Id</center></th>
+                <th><center>Expansions</center></th>
+                <th></th>
+            </tr>
+            
+            {% for net in networks %}
+            <tr>
+                <td><center>{{ net["node_id"] }}</center></td>
+                <td><center>{{ net["name"] }}</center></td>
+                <td><center>{{ net["cloud_network_id"] }}</center></td>
+                <td><center>{% for expansion in expansions %}
+                    {% if net["node_id"] == expansion["network_id"] %} 
+                    {% for tunnel in tunnels %}
+                    {% if tunnel["node_id"] == expansion["tunnel_id"] %}
+                    <form method="POST" action="/gui/delete-expansion/{{ expansion["node_id"] }}">
+                        {{ tunnel["name"] }} - In: {{ expansion["inter_id_in"] }} - Out: {{ expansion["inter_id_out"] }} <input type="submit" value="Delete" style="font-weight: bold;">
+                    </form>
+                    {% endif %}{% endfor %}{% endif %}{% endfor %}
+                    <form method="POST" action="/gui/create-expansion">
+                        <input type="hidden" name="network_id" size="5" value="{{ net["node_id"] }}" style="border:none;">
+                        <select name="tunnel_id"> 
+                            {% for tunnel in tunnels %}
+                            <option value="{{ tunnel.node_id }}">{{ tunnel.name }}</option>
+                            {% endfor %}
+                        </select>
+                        - In: <input type="text" name="intercloud_id_in" size="5" style="border:none;">
+                        - Out: <input type="text" name="intercloud_id_out" size="5" style="border:none;"> 
+                        <input type="submit" value="Create" style="font-weight: bold;">
+                    </form>
+                </center></td>
+                <form method="POST" action="/gui/delete-network/{{ net["node_id"] }}">
+                    <td><center><input type="submit" value="Delete" style="font-weight: bold;"></center></td>
+                </form>
+            </tr>
+            {% endfor %}
+
+            <form method="POST" action="/gui/create-network">
+                <tr>
+                    <td><center>None</center></td>
+                    <td><center><input type="text" name="name" size="5" style="border:none;"></center></td>
+                    <td><center><input type="text" name="cloud_network_id" size="5" style="border:none;"></center></td>
+                    <td><center>None</center></td>
+                    <td><center><input type="submit" value="Create" style="font-weight: bold;"></center></td>
+                </tr>
+            </form>
+        </table>
+        
+    </body>
+</html>

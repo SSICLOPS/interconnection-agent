@@ -33,7 +33,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 from aiohttp import web
 import uuid
 from marshmallow import Schema, fields, post_load, ValidationError, validate
-import traceback
 import logging
 
 import utils
@@ -49,7 +48,6 @@ class L2_tunnel_schema(Schema):
     peer_ip         = fields.Str(validate=utils.validate_ip_address)
     peer_public_ip  = fields.Str(validate=utils.validate_ip_address)
     type            = fields.Str(validate=validate.OneOf(["gre","vxlan"]))
-    mtu             = fields.Integer()
     enabled         = fields.Boolean()
     peer_vni        = fields.Integer(validate=lambda n: 2<= n <= 4095)
     
@@ -73,7 +71,7 @@ class L2_tunnel(container3.ContainerNode):
         keys.append((self.node_id, True))
         keys.append(((utils.KEY_L2_TUNNEL, self.node_id), True))
         keys.append(((utils.KEY_L2_TUNNEL, utils.KEY_L2_TUNNEL_IP, self.self_ip),
-            True
+            False
             ))
         return keys
         
@@ -88,7 +86,7 @@ async def get_l2_tunnels(data_store, amqp, node_id=None):
     
     
 async def create_l2_tunnel(data_store, amqp, **kwargs):
-    ret = utils.create_object(data_store, amqp, L2_tunnel_schema, kwargs)
+    ret, l2_tunnel = utils.create_object(data_store, amqp, L2_tunnel_schema, kwargs)
     await send_create_tunnel(data_store, amqp, l2_tunnel)
     raise web.HTTPAccepted(content_type="application/json",
         text = ret
@@ -96,7 +94,7 @@ async def create_l2_tunnel(data_store, amqp, **kwargs):
     
     
 async def delete_l2_tunnel(data_store, amqp, node_id):
-    utils.delete_object(data_store, amqp, node_id, utils.KEY_L2_TUNNEL)
+    l2_tunnel = utils.delete_object(data_store, amqp, node_id, utils.KEY_L2_TUNNEL)
     await send_delete_tunnel(data_store, amqp, l2_tunnel)
     raise web.HTTPAccepted()
     

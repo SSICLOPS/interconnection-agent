@@ -33,7 +33,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 from aiohttp import web
 import uuid
 from marshmallow import Schema, fields, post_load, ValidationError
-import traceback
 import logging
 
 
@@ -85,13 +84,13 @@ async def get_networks(data_store, amqp, node_id=None):
     
     
 async def create_network(data_store, amqp, **kwargs):
-    ret = utils.create_object(data_store, amqp, Network_schema, kwargs)
+    ret, _ = utils.create_object(data_store, amqp, Network_schema, kwargs)
     raise web.HTTPAccepted(content_type="application/json", text = ret)
     
     
 async def delete_network(data_store, amqp, node_id):
-    utils.delete_object(data_store, amqp, node_id, utils.KEY_NETWORK)
-    remove_all_propagated_network(data_store, amqp, network)
+    network = utils.delete_object(data_store, amqp, node_id, utils.KEY_NETWORK)
+    await remove_all_propagated_network(data_store, amqp, network)
     raise web.HTTPAccepted()
     
    

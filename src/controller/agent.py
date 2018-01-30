@@ -33,7 +33,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import asyncio
 import logging
-import traceback
 
 import utils
 from tunneling import l2_tunnel, network, expansion
