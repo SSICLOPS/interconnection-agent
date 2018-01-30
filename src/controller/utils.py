@@ -133,7 +133,7 @@ def create_object(data_store, amqp, obj_schema, kwargs):
     try:
         data_store.add(obj)
     except KeyError as e:
-        raise web.HTTPConflict(text = e.args)
+        raise web.HTTPConflict(text = "{}".format(e.args))
     obj_str = schema.dumps(obj).data
     data_store.save(obj)
     return obj_str, obj
