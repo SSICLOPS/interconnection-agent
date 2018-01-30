@@ -238,6 +238,4 @@ api_mappings = [
         "callback":gui.delete_expansion, "url_args": ["node_id"], 
         "required_args" : [], "opt_args" : []
         },
-]
-
-"node_id", 
+] 
