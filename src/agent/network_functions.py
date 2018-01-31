@@ -50,7 +50,9 @@ def addNetns(ipr, network_id, vlan, mtu):
     
     #Create the LXB
     pyroute_utils.createLink(ns, 'lxb', 'bridge')
-    pyroute_utils.createVlan(ns, 'lxb.{}'.format(vlan), 'lxb', vlan)
+    pyroute_utils.createLink(ns, 'lxb.{}'.format(vlan), "vlan", link = 'lxb', 
+        vlan_id = vlan
+        )
     
     #Set the OVS port in the namespace
     idx_in = pyroute_utils.setNetNS(

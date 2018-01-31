@@ -34,6 +34,7 @@ import asyncio
 import logging
 import json
 import sys
+import traceback
 
 from common import amqp_client
 import actions_interface
@@ -103,6 +104,7 @@ class Queue_manager(object):
                 sys.exit()
             except :
                 logging.error("Action failed")
+                logging.error(traceback.format_exc())
                 resp = False
             
             #Send the status back to the controller

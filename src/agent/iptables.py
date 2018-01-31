@@ -116,7 +116,34 @@ def defTCPClamping(interfaces):
                 )
             )
     return rules
-
+    
+def def_masquerade(interfaces):
+    rules = []
+    for interface in interfaces:
+        rules.append(
+            ("nat", "POSTROUTING", {"out-interface":interface,
+                'target':"MASQUERADE"
+                }))
+    return rules
+    
+def def_DNAT(interface, orig_port, ip, dst_port):
+    rules = []
+    rules.append(
+        ("nat", "PREROUTING", {"in-interface":interface,
+            "protocol": "tcp",
+            "tcp": {"dport":orig_port},
+            'target':{"DNAT":{"to-destination":"{}:{}".format(ip, dst_port)}},
+            }))
+    return rules
+    
+def def_REDIRECT(interface, dst_port):
+    rules = []
+    rules.append(
+        ("nat", "PREROUTING", {"in-interface":interface,
+            "protocol": "tcp",
+            'target':{"REDIRECT":{"to-ports":"{}".format(dst_port)}},
+            }))
+    return rules
 
 def defNoTrack():
     return [('raw', 'PREROUTING', {'target': {'CT': {'notrack': ''}}})]

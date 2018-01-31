@@ -43,12 +43,17 @@ TABLE_TYPE_SPLIT = 20
 TABLE_UNICAST_LEARNT = 21
 TABLE_UNICAST_APPLY = 22
 TABLE_MULTICAST = 25
-TABLE_ROUTING = 30
+TABLE_MPTCP_SPLIT = 30
+TABLE_MPTCP_APPLY = 31
+TABLE_ROUTING = 32
+
 
 class Ofctl_manager(object):
 
     def __init__(self, **kwargs):
         utils3.set_attributes(self, override = True, **kwargs)
+    
+    def init_flows(self):
         self.init_tun()
         self.init_in()
         self.init_out()
@@ -125,11 +130,21 @@ class Ofctl_manager(object):
                 "table={}, priority=10, actions=".format(TABLE_UNICAST_APPLY),
                 "move:NXM_NX_REG1[0..11]->NXM_OF_VLAN_TCI[0..11],",
                 "move:NXM_NX_REG2[0..24]->NXM_NX_TUN_ID[0..24],",
-                "goto_table:{}".format(TABLE_ROUTING)
+                "goto_table:{}".format(TABLE_MPTCP_SPLIT)
                 ])
             ])
         utils.execute_list(["ovs-ofctl", "mod-flows", "--strict", self.dp_tun, 
             "table={}, priority=0, actions=drop".format(TABLE_MULTICAST)
+            ])
+        utils.execute_list(["ovs-ofctl", "mod-flows", "--strict", self.dp_tun, 
+            "table={}, priority=0, actions=goto_table:{}".format(TABLE_MPTCP_SPLIT,
+                TABLE_ROUTING
+                )
+            ])
+        utils.execute_list(["ovs-ofctl", "mod-flows", "--strict", self.dp_tun, 
+            "table={}, priority=0, actions=goto_table:{}".format(TABLE_MPTCP_APPLY,
+                TABLE_ROUTING
+                )
             ])
         utils.execute_list(["ovs-ofctl", "mod-flows", "--strict", self.dp_tun, 
             "table={}, priority=0, actions=drop".format(TABLE_ROUTING)
@@ -146,6 +161,12 @@ class Ofctl_manager(object):
         utils.execute_list(["ovs-ofctl", "mod-flows", "--strict", self.dp_out, 
             "table={}, priority=0, actions=normal".format(TABLE_START)
             ])
+            
+    def init_mptcp(self, **kwargs):
+        utils3.set_attributes(self, override=True, **kwargs)
+        utils.execute("ovs-ofctl del-flows {}".format(self.dp_mptcp))
+        #TODO Do something here
+        
         
     def add_tunnel(self, port_id):
         utils.execute_list(["ovs-ofctl", "mod-flows", "--strict", self.dp_tun, 
@@ -191,7 +212,7 @@ class Ofctl_manager(object):
             actions.append("set_field:0x{:03x}{:03x}->tun_id".format(self.self_vni,
                 expansion_mult["peer_vni"]
                 ))
-            actions.append("resubmit(,{})".format(TABLE_ROUTING))
+            actions.append("resubmit(,{})".format(TABLE_MPTCP_SPLIT))
         actions_str = ",".join(actions)
         utils.execute_list(["ovs-ofctl", "mod-flows", "--strict", self.dp_tun, 
             "table={}, priority=10, vlan_vid=0x1{:03x}/0x1fff, actions={}".format(
@@ -221,7 +242,7 @@ class Ofctl_manager(object):
                     expansion_mult["peer_vni"]
                     )
                 )
-            actions.append("resubmit(,{})".format(TABLE_ROUTING))
+            actions.append("resubmit(,{})".format(TABLE_MPTCP_SPLIT))
         actions_str = ",".join(actions)
         utils.execute_list(["ovs-ofctl", "mod-flows", "--strict", self.dp_tun, 
             " ".join(["table={}, priority=10,".format(TABLE_MULTICAST),

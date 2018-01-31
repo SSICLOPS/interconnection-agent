@@ -93,7 +93,16 @@ class Ovs_manager(object):
         self.patchOutPort = str(ovs_utils.find_port_id("patch-out-tun"))
         self.patchTunPort = str(ovs_utils.find_port_id("patch-tun-out"))
 
-
+    def set_infra_mptcp(self, dp_mptcp):
+        self.dp_mptcp = dp_mptcp
+        self.dpid_mptcp = self.create_bridge(
+            self.dp_mptcp, self.controller_ip, self.controller_port)
+        #Add the patch port beween the tunnel and namespace out bridges
+        self.add_patch_port(self.dp_tun, self.dp_mptcp, "patch-mptcp-tun",
+            "patch-tun-mptcp"
+        )
+        self.patchMptcpPort = str(ovs_utils.find_port_id("patch-mptcp-tun"))
+        self.patchTunPortMptcp = str(ovs_utils.find_port_id("patch-tun-mptcp"))
 
     #Find the tunneling bridge of OpenStack (br-tun for GRE/vxlan or br-prv for
     #vlans
@@ -200,15 +209,16 @@ class Ovs_manager(object):
 
 
 
-    def _add_port(self, ret, name, bridge, args={}, vlan=None):
+    def _add_port(self, ret, name, bridge, args={}, vlan=None, recreate = False):
         if ret == RETCODE_ERROR:
             raise RuntimeError
         #Incorrect configuration, delete the port to recreate
-        if ret == RETCODE_NOTOK:
+        if ret == RETCODE_NOTOK or (ret == RETCODE_OK and recreate):
             self.del_port(name)
             logging.debug("Port {} deleted for incorrect configuration".format(
                 name
                 ))
+            ret = RETCODE_NOTOK
         #Create the port and modify the configuration
         if ret != RETCODE_OK:
             ovs_utils.add_port(bridge, name, vlan=vlan, mode="trunk", silent=True)
@@ -267,10 +277,10 @@ class Ovs_manager(object):
             )
         return (peer_port_name, ovs_utils.find_port_id(peer_port_name))
 
-    def add_internal_port(self, bridge, name, vlan):
+    def add_internal_port(self, bridge, name, vlan=None, recreate=False):
         ret = self._check_port(name, bridge, self._internal_port_conf_check, [])
         self._add_port(ret, name, bridge, args={
-                            "type": "internal"}, vlan=vlan)    
+                            "type": "internal"}, vlan=vlan, recreate=recreate)    
         
         
 

@@ -38,6 +38,7 @@ import logging
 import random
 import json
 import uuid
+import ipaddress
 
 from common import amqp_client
 import queue_manager
@@ -47,6 +48,7 @@ from ovs import ovs_manager, ofctl_manager
 from ipsec import strongswan_driver, vpn_manager
 import network_functions
 from common import file
+import mptcp
 
 from helpers_n_wrappers import utils3
 
@@ -302,6 +304,18 @@ def init_agent(argv):
     else:
         raise Input_error("The given flow control method is not supported.")
 
+    mptcp_enabled = config.getboolean('DEFAULT', 'mptcp_enabled')
+    mptcp_conf_file = config.get('mptcp', 'mptcp_config_file')
+    dp_mptcp = config.get('mptcp', 'mptcp_bridge')
+    address_pool = ipaddress.ip_network(config.get('mptcp', 
+        'internal_address_pool'
+        ))
+    
+    mptcp_manager = mptcp.Mptcp_manager( mptcp_conf_file, ovs_manager_obj, 
+        of_manager_obj, dp_mptcp, mptcp_enabled, address_pool
+        )
+        
+    of_manager_obj.init_flows()
     
     #Init the agent
     agent = Agent(self_id = self_id, addresses = addresses, iproute = iproute, 
