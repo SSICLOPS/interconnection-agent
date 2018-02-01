@@ -277,7 +277,25 @@ class Ofctl_manager(object):
             "table={}, priority=10, in_port={}".format(TABLE_MPTCP_VLAN, port),
             ])
         utils.execute_list(["ovs-ofctl", "del-flows", "--strict", self.dp_mptcp, 
-            "table={}, priority=10, vlan_vid={}".format(TABLE_MPTCP_VLAN, vni),
+            "table={}, priority=10, vlan_vid=0x1{:03x}".format(TABLE_MPTCP_FORWARD, vni)
+            ])
+        utils.execute_list(["ovs-ofctl", "del-flows", "--strict", self.dp_tun, 
+            " ".join([
+                "table={}, priority=10,".format(TABLE_APPLY_MPTCP),
+                "tcp, tun_id=0x{:x}/0xfff".format(vni), 
+                ])
+            ])
+        utils.execute_list(["ovs-ofctl", "del-flows", "--strict", self.dp_tun, 
+            " ".join([
+                "table={}, priority=10,".format(TABLE_APPLY_MPTCP),
+                "arp, tun_id=0x{:x}/0xfff".format(vni), 
+                ])
+            ])
+        utils.execute_list(["ovs-ofctl", "del-flows", "--strict", self.dp_tun, 
+            " ".join([
+                "table={}, priority=10,".format(TABLE_IN_MPTCP),
+                "vlan_vid=0x1{:03x}/0x1fff".format(vni),
+                ])
             ])
         
     def add_tunnel(self, port_id):
@@ -317,6 +335,16 @@ class Ofctl_manager(object):
                 "goto_table:{}".format(TABLE_LEARNING) 
                 ])
             ])
+        if expansion["mptcp"]:
+            utils.execute_list(["ovs-ofctl", "mod-flows", "--strict", self.dp_tun, 
+                "".join(["table={}, priority=10, ".format(TABLE_SPLIT_MPTCP),
+                    "tun_id=0x{:03x}{:03x}, ".format(self.self_vni, 
+                        expansion["peer_vni"]
+                        ),
+                    "vlan_vid=0x1{:03x}/0x1fff, ".format(expansion["intercloud_id"]),
+                    "actions=goto_table:{}".format(TABLE_APPLY_MPTCP) 
+                    ])
+                ])
         actions=[]
         for expansion_mult in expansions_list:
             actions.append("mod_vlan_vid:{}".format(expansion_mult["intercloud_id"]))
@@ -345,6 +373,15 @@ class Ofctl_manager(object):
                 "vlan_vid=0x1{:03x}/0x1fff".format(expansion["intercloud_id"])
                 ])
             ])
+        if expansion["mptcp"]:
+            utils.execute_list(["ovs-ofctl", "del-flows", "--strict", self.dp_tun, 
+                "".join(["table={}, priority=10, ".format(TABLE_SPLIT_MPTCP),
+                    "tun_id=0x{:03x}{:03x}, ".format(self.self_vni, 
+                        expansion["peer_vni"]
+                        ),
+                    "vlan_vid=0x1{:03x}/0x1fff, ".format(expansion["intercloud_id"])
+                    ])
+                ])
         actions=[]
         for expansion_mult in expansions_list:
             actions.append("mod_vlan_vid:{}".format(expansion_mult["intercloud_id"]))
