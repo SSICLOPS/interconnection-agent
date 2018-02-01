@@ -244,8 +244,18 @@ class Ofctl_manager(object):
         utils.execute_list(["ovs-ofctl", "mod-flows", "--strict", self.dp_tun, 
             " ".join([
                 "table={}, priority=10,".format(TABLE_APPLY_MPTCP),
-                "tun_id=0x{:x}/0xfff".format(vni), 
+                "tcp, tun_id=0x{:x}/0xfff".format(vni), 
                 "actions=move:NXM_OF_VLAN_TCI[0..11]->NXM_NX_PKT_MARK[0..11]",
+                "move:NXM_NX_TUN_ID[0..11]->NXM_OF_VLAN_TCI[0..11]",
+                "output:{}".format(self.patch_tun_port_mptcp)
+                ])
+            ])
+        utils.execute_list(["ovs-ofctl", "mod-flows", "--strict", self.dp_tun, 
+            " ".join([
+                "table={}, priority=10,".format(TABLE_APPLY_MPTCP),
+                "arp, tun_id=0x{:x}/0xfff".format(vni), 
+                "actions=resubmit(,{}),".format(TABLE_ROUTING),
+                "move:NXM_OF_VLAN_TCI[0..11]->NXM_NX_PKT_MARK[0..11]",
                 "move:NXM_NX_TUN_ID[0..11]->NXM_OF_VLAN_TCI[0..11]",
                 "output:{}".format(self.patch_tun_port_mptcp)
                 ])
