@@ -210,6 +210,14 @@ def get_ip_with_mask(ipr, name):
             if attr[0] == "IFA_ADDRESS":
                 addresses.add("{}/{}".format(attr[1],address["prefixlen"]))
     return addresses
+    
+def getInterfaceMac(ipr, idx):
+    links = ipr.get_links(idx)
+    link = links[0]
+    for attr in link["attrs"]:
+        if attr[0] == "IFLA_ADDRESS":
+            return attr[1]
+    return None
 
 class InterfaceNotFound(Exception):
     pass

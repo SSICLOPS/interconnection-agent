@@ -33,6 +33,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 import ipaddress
 import uuid
 import json
+import traceback
 
 import pyroute_utils
 import iptables
@@ -103,13 +104,17 @@ class Mptcp_manager(object):
             self.routing_table_id += 1
             self.networks[mptcp_net.name] = mptcp_net
         self.ovs_manager.set_infra_mptcp(dp_mptcp)
-        self.of_manager.init_mptcp(dp_mptcp = dp_mptcp, 
+
+    def init_flows(self):
+        self.of_manager.init_mptcp(dp_mptcp = self.ovs_manager.dp_mptcp, 
             dpid_mptcp = self.ovs_manager.dpid_mptcp, 
             patch_mptcp_port = self.ovs_manager.patchMptcpPort, 
             patch_tun_port_mptcp = self.ovs_manager.patchTunPortMptcp
             )
-        #self.add_proxy(peer_vni=256, self_port_wan=1080, self_port_lan=1082)
+
+        #self.add_proxy(peer_vni=156, self_port_wan=1080, self_port_lan=1082)
         #self.del_proxy(peer_vni=256, self_port_wan=1080, self_port_lan=1082)
+        
             
     def add_proxy(self, **kwargs):
         if kwargs["peer_vni"] in self.proxies:
@@ -128,6 +133,9 @@ class Mptcp_manager(object):
         
         self.add_proxy_wan(proxy)
         self.add_proxy_lan(proxy)
+        self.of_manager.add_proxy(proxy.ovs_port_id, proxy.peer_vni, 
+            proxy.int_mac_address
+            )
         
     def del_proxy(self, **kwargs):
         if kwargs["peer_vni"] not in self.proxies:
@@ -276,6 +284,8 @@ class Mptcp_manager(object):
         self.ovs_manager.add_internal_port(self.ovs_manager.dp_mptcp, if_name, 
             vlan=proxy.peer_vni, recreate=True
             )
+        proxy.ovs_port_id = self.ovs_manager.find_port(if_name)
+        
         netns_name = "mptcp-{}".format(proxy.peer_vni)
         netns = pyroute_utils.getNetNS(netns_name)
         
@@ -291,7 +301,11 @@ class Mptcp_manager(object):
         pyroute_utils.add_address(netns, ns_if_idx, address,
                 self.internal_netmask
                 )
+                
+        proxy.int_mac_address = pyroute_utils.getInterfaceMac(netns, ns_if_idx)
 
+        if not proxy.int_mac_address:
+            raise ValueError("Unable to find the mac address")
         
         #Set a rule so that traffic from that IP goes to a separate table
         pyroute_utils.add_rule(netns, table = proxy.routing_table_id, 
@@ -341,7 +355,7 @@ class Mptcp_manager(object):
 class Mptcp_network(object):
     def __init__(self, **kwargs):
         utils3.set_attributes(self, override=True, **kwargs)
-        
+        self.nated = True
         #Attributes of interest:
         # - gateway : the gateway IP address for the mptcp namespace
         # - network : the network from which the pool of IP comes from

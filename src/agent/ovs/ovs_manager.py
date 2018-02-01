@@ -64,6 +64,9 @@ class Ovs_manager(object):
         utils3.set_attributes(self, override = True, **kwargs)
 
 
+    def find_port(self, port_name):
+        return str(ovs_utils.find_port_id(port_name))
+        
     def set_infra(self):
         #Creates the bridges
         self.dpid_in = self.create_bridge(
@@ -98,8 +101,8 @@ class Ovs_manager(object):
         self.dpid_mptcp = self.create_bridge(
             self.dp_mptcp, self.controller_ip, self.controller_port)
         #Add the patch port beween the tunnel and namespace out bridges
-        self.add_patch_port(self.dp_tun, self.dp_mptcp, "patch-mptcp-tun",
-            "patch-tun-mptcp"
+        self.add_patch_port(self.dp_tun, self.dp_mptcp, "patch-tun-mptcp",
+            "patch-mptcp-tun"
         )
         self.patchMptcpPort = str(ovs_utils.find_port_id("patch-mptcp-tun"))
         self.patchTunPortMptcp = str(ovs_utils.find_port_id("patch-tun-mptcp"))

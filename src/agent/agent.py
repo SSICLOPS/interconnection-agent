@@ -316,6 +316,7 @@ def init_agent(argv):
         )
         
     of_manager_obj.init_flows()
+    mptcp_manager.init_flows()
     
     #Init the agent
     agent = Agent(self_id = self_id, addresses = addresses, iproute = iproute, 
