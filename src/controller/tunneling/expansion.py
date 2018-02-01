@@ -52,8 +52,7 @@ _expansion_args = {
     "peer_vni": ("tunnel", "peer_vni"),
     "peer_name": ("tunnel", "name"),
     "tunnel_id": ("tunnel", "node_id"),
-    "inter_id_in": ("expansion", "intercloud_id_in"),
-    "inter_id_out": ("expansion", "intercloud_id_out")
+    "intercloud_id": ("expansion", "intercloud_id")
 }
 
 
@@ -74,8 +73,7 @@ class Expansion_schema(Schema):
     node_id           = fields.Str(validate=utils.validate_uuid)
     network_id        = fields.Str(validate=utils.network_validator)
     tunnel_id         = fields.Str(validate=utils.l2_validator)
-    intercloud_id_out = fields.Int(validate=validate.Range(2,4095))
-    intercloud_id_in  = fields.Int(validate=validate.Range(2,4095))
+    intercloud_id     = fields.Int(validate=validate.Range(2,4095))
 
     
     @post_load

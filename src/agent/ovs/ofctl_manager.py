@@ -102,7 +102,7 @@ class Ofctl_manager(object):
                 "table={},hard_timeout=300,priority=10,".format(TABLE_UNICAST_LEARNT),
                 "NXM_OF_VLAN_TCI[0..11]=NXM_NX_REG0[0..11]",
                 ",NXM_OF_ETH_DST[]=NXM_OF_ETH_SRC[],",
-                "load:NXM_NX_REG1[]->NXM_NX_REG1[],",
+                "load:NXM_NX_REG0[]->NXM_NX_REG0[],",
                 "load:NXM_NX_TUN_ID[0..11]->NXM_NX_REG2[12..23],",
                 "load:NXM_NX_TUN_ID[12..23]->NXM_NX_REG2[0..11]),",
                 "output:{}".format(self.patch_tun_id)
@@ -127,14 +127,14 @@ class Ofctl_manager(object):
             "table={}, priority=0, actions=drop".format(TABLE_UNICAST_LEARNT)
             ])
         utils.execute_list(["ovs-ofctl", "mod-flows", "--strict", self.dp_tun, 
-            "".join(["table={}, priority=20, reg1=0, ".format(TABLE_UNICAST_APPLY),
+            "".join(["table={}, priority=20, reg0=0, ".format(TABLE_UNICAST_APPLY),
                 "actions=goto_table:{}".format(TABLE_MULTICAST)
                 ])
             ])
         utils.execute_list(["ovs-ofctl", "mod-flows", "--strict", self.dp_tun, 
             "".join([
                 "table={}, priority=10, actions=".format(TABLE_UNICAST_APPLY),
-                "move:NXM_NX_REG1[0..11]->NXM_OF_VLAN_TCI[0..11],",
+                "move:NXM_NX_REG0[0..11]->NXM_OF_VLAN_TCI[0..11],",
                 "move:NXM_NX_REG2[0..23]->NXM_NX_TUN_ID[0..23],",
                 "goto_table:{}".format(TABLE_SPLIT_MPTCP)
                 ])
@@ -301,16 +301,15 @@ class Ofctl_manager(object):
                 "tun_id=0x{:03x}{:03x}, ".format(expansion["peer_vni"], 
                     self.self_vni
                     ),
-                "vlan_vid=0x1{:03x}/0x1fff, ".format(expansion["inter_id_in"]),
+                "vlan_vid=0x1{:03x}/0x1fff, ".format(expansion["intercloud_id"]),
                 "actions=mod_vlan_vid:{},".format(local_vlan),
-                "load:{}->NXM_NX_REG0[],".format(hex(expansion["inter_id_in"])),
-                "load:{}->NXM_NX_REG1[],".format(hex(expansion["inter_id_out"])),
+                "load:{}->NXM_NX_REG0[],".format(hex(expansion["intercloud_id"])),
                 "goto_table:{}".format(TABLE_LEARNING) 
                 ])
             ])
         actions=[]
         for expansion_mult in expansions_list:
-            actions.append("mod_vlan_vid:{}".format(expansion_mult["inter_id_out"]))
+            actions.append("mod_vlan_vid:{}".format(expansion_mult["intercloud_id"]))
             actions.append("set_field:0x{:03x}{:03x}->tun_id".format(self.self_vni,
                 expansion_mult["peer_vni"]
                 ))
@@ -333,12 +332,12 @@ class Ofctl_manager(object):
                 "tun_id=0x{:x}{:x}, ".format(expansion["peer_vni"], 
                     self.self_vni
                     ),
-                "vlan_vid=0x1{:03x}/0x1fff".format(expansion["inter_id_in"])
+                "vlan_vid=0x1{:03x}/0x1fff".format(expansion["intercloud_id"])
                 ])
             ])
         actions=[]
         for expansion_mult in expansions_list:
-            actions.append("mod_vlan_vid:{}".format(expansion_mult["inter_id_out"]))
+            actions.append("mod_vlan_vid:{}".format(expansion_mult["intercloud_id"]))
             actions.append("set_field:0x{:03x}{:03x}->tun_id".format(
                     self.self_vni,
                     expansion_mult["peer_vni"]

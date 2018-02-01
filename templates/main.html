@@ -316,7 +316,7 @@
                     {% for tunnel in tunnels %}
                     {% if tunnel["node_id"] == expansion["tunnel_id"] %}
                     <form method="POST" action="/gui/delete-expansion/{{ expansion["node_id"] }}">
-                        {{ tunnel["name"] }} - In: {{ expansion["inter_id_in"] }} - Out: {{ expansion["inter_id_out"] }} <input type="submit" value="Delete" style="font-weight: bold;">
+                        {{ tunnel["name"] }} - Id: {{ expansion["intercloud_id"] }}<input type="submit" value="Delete" style="font-weight: bold;">
                     </form>
                     {% endif %}{% endfor %}{% endif %}{% endfor %}
                     <form method="POST" action="/gui/create-expansion">
@@ -326,8 +326,7 @@
                             <option value="{{ tunnel.node_id }}">{{ tunnel.name }}</option>
                             {% endfor %}
                         </select>
-                        - In: <input type="text" name="intercloud_id_in" size="5" style="border:none;">
-                        - Out: <input type="text" name="intercloud_id_out" size="5" style="border:none;"> 
+                        - Id: <input type="text" name="intercloud_id" size="5" style="border:none;">
                         <input type="submit" value="Create" style="font-weight: bold;">
                     </form>
                 </center></td>
