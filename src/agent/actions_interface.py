@@ -73,6 +73,16 @@ async def action_del_expansion(agent, *args, **kwargs):
     logging.debug("deleting expansion {}".format(kwargs["node_id"]))
     agent.del_expansion(*args, **kwargs)
     return True
+    
+async def action_add_proxy(agent, *args, **kwargs):
+    logging.debug("Creating expansion {}".format(kwargs["node_id"]))
+    agent.mptcp_manager.add_proxy(*args, **kwargs)
+    return True
+
+async def action_del_proxy(agent, *args, **kwargs):
+    logging.debug("deleting expansion {}".format(kwargs["node_id"]))
+    agent.mptcp_manager.del_proxy(*args, **kwargs)
+    return True
 
 async def action_no_op(agent, *args, **kwargs):
     return True
@@ -93,4 +103,6 @@ actions_mapping = {
     "Del-network": action_del_network,
     "Add-expansion": action_add_expansion,
     "Del-expansion": action_del_expansion,
+    "Add-proxy": action_add_proxy,
+    "Del-proxy": action_del_proxy,
     }

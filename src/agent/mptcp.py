@@ -33,7 +33,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 import ipaddress
 import uuid
 import json
-import traceback
 
 import pyroute_utils
 import iptables

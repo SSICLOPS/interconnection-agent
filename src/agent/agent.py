@@ -322,7 +322,7 @@ def init_agent(argv):
     agent = Agent(self_id = self_id, addresses = addresses, iproute = iproute, 
         standalone = standalone, ovs_manager = ovs_manager_obj,
         vpn_manager = vpn_manager_obj, of_manager = of_manager_obj,
-        mtu_lan = mtu_lan, mtu_wan = mtu_wan
+        mtu_lan = mtu_lan, mtu_wan = mtu_wan, mptcp_manager = mptcp_manager
         )
     
     #Init the queue manager
