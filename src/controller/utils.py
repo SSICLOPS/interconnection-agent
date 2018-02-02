@@ -48,6 +48,8 @@ KEY_CONNECTION = "KEY_CONNECTION"
 KEY_NETWORK = "KEY_NETWORK"
 KEY_CLOUD_NET_ID = "KEY_CLOUD_NET_ID"
 KEY_EXPANSION = "KEY_EXPANSION"
+KEY_MPTCP_PROXY = "KEY_MPTCP_PROXY"
+KEY_MPTCP_PEER_VNI = "KEY_MPTCP_PEER_VNI"
 
 
 ACTION_ACK = "Ack"
@@ -62,6 +64,8 @@ ACTION_ADD_EXPANSION = "Add-expansion"
 ACTION_DEL_EXPANSION = "Del-expansion"
 ACTION_ADD_NETWORK = "Add-network"
 ACTION_DEL_NETWORK = "Del-network"
+ACTION_ADD_PROXY = "Add-proxy"
+ACTION_DEL_PROXY = "Del-proxy"
 
 
 
@@ -107,6 +111,9 @@ ipsec_validator = functools.partial(data_store_validator.check_in_data,
     )
 network_validator = functools.partial(data_store_validator.check_in_data,
     KEY_NETWORK
+    )
+agent_validator = functools.partial(data_store_validator.check_in_data,
+    KEY_AGENT
     )
 
 

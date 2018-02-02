@@ -131,7 +131,7 @@ def def_DNAT(interface, orig_port, ip, dst_port):
     rules.append(
         ("nat", "PREROUTING", {"in-interface":interface,
             "protocol": "tcp",
-            "tcp": {"dport":orig_port},
+            "tcp": {"dport":"{}".format(orig_port)},
             'target':{"DNAT":{"to-destination":"{}:{}".format(ip, dst_port)}},
             }))
     return rules

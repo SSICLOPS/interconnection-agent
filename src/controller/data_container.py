@@ -35,14 +35,15 @@ import sys
 
 
 from ipsec import ike_policy, ipsec_policy, vpn_connection
-from tunneling import l2_tunnel, network, expansion
+from tunneling import l2_tunnel, network, expansion, mptcp_proxy
 import utils
+import agent
 
 from helpers_n_wrappers import container3
 
 #Objects to restore, orders matter as there are dependencies
-_restores = ["ike_policies", "ipsec_policies", "tunnels", "connections", 
-    "networks", "expansions"]
+_restores = ["agents", "ike_policies", "ipsec_policies", "tunnels", "connections", 
+    "networks", "expansions", "mptcp_proxies"]
 
 #Types for the API
 _type_name_eq = {
@@ -58,6 +59,10 @@ _type_name_eq = {
         "node_key": utils.KEY_POLICY_IPSEC,"node_type_name": "ipsec_policies"},
     "expansions" :       {"node_schema": expansion.Expansion_schema, 
         "node_key": utils.KEY_EXPANSION,"node_type_name": "expansions"},
+    "mptcp_proxies" :    {"node_schema": mptcp_proxy.Mptcp_proxy_schema, 
+        "node_key": utils.KEY_MPTCP_PROXY,"node_type_name": "mptcp_proxies"},
+    "agents" :    {"node_schema": agent.Agent_schema, 
+        "node_key": utils.KEY_AGENT,"node_type_name": "agents"},
     }
 
 
@@ -69,6 +74,8 @@ _type_eq = {
     "Ike_policy" :     _type_name_eq["ike_policies"],
     "Ipsec_policy" :   _type_name_eq["ipsec_policies"],
     "Expansion" :      _type_name_eq["expansions"],
+    "Mptcp_proxy" :    _type_name_eq["mptcp_proxies"],
+    "Agent" :          _type_name_eq["agents"],
     }
 
 

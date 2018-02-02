@@ -33,17 +33,31 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import asyncio
 import logging
+from marshmallow import Schema, fields, post_load, ValidationError, validate
+import traceback
 
 import utils
-from tunneling import l2_tunnel, network, expansion
+from tunneling import l2_tunnel, network, expansion, mptcp_proxy
 from ipsec import vpn_connection
 
 from helpers_n_wrappers import container3, utils3
+
+class Agent_schema(Schema):
+    node_uuid       = fields.Str(validate=utils.validate_uuid)
+    vni             = fields.Integer(validate=lambda n: 2<= n <= 4095)
+    standalone      = fields.Boolean()
+    runtime_id      = fields.Integer()
+    
+    
+    @post_load
+    def load_node(self, data):
+        return Agent(**data)
 
 
 class Agent(container3.ContainerNode):
     def __init__(self, **kwargs):
         super().__init__(name="Agent")
+        self.addresses = []
         utils3.set_attributes(self, override = True, **kwargs)
         self.loading = asyncio.Event()
 
@@ -109,6 +123,9 @@ class Agent(container3.ContainerNode):
             await expansion.send_create_expansion(data_store, amqp, 
                 expansion_obj
                 )
+        for mptcp_proxy_obj in data_store.lookup_list((utils.KEY_MPTCP_PROXY, 
+                utils.KEY_AGENT, self.node_uuid), False, False):  
+            await mptcp_proxy.send_create_proxy(data_store, amqp, mptcp_proxy_obj)
             
     async def update_tunnels(self, data_store, amqp, old_addresses, new_addresses):
         #Remove the expansions using the tunnels and the tunnels
@@ -126,7 +143,7 @@ class Agent(container3.ContainerNode):
                 await l2_tunnel.send_delete_tunnel(data_store, amqp, tunnel)
         
         self.addresses = payload["addresses"]
-        self.data_store.updatekeys(self)
+        data_store.updatekeys(self)
         
         #add the new tunnels and create the associated expansions
         for address in new_addresses - old_addresses:

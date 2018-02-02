@@ -72,7 +72,8 @@ class Agent(object):
             "addresses":list(self.addresses),
             "runtime_id":self.runtime_id,
             "standalone": self.standalone,
-            "networks": list(self.networks_mapping.keys())
+            "networks": list(self.networks_mapping.keys()),
+            "vni": self.self_vni
             }
         return json.dumps(heartbeat_payload)
         
@@ -297,6 +298,7 @@ def init_agent(argv):
     ovs_arch["dpid_out"] = ovs_manager_obj.dpid_out
     ovs_arch["dpid_tun"] = ovs_manager_obj.dpid_tun
     ovs_arch["self_vni"] = config.getint('DEFAULT', 'self_vni')
+    self_vni = ovs_arch["self_vni"]
     
     flow_ctl = config.get('DEFAULT', 'flow_control')
     if flow_ctl == "ovs-ofctl":
@@ -322,7 +324,8 @@ def init_agent(argv):
     agent = Agent(self_id = self_id, addresses = addresses, iproute = iproute, 
         standalone = standalone, ovs_manager = ovs_manager_obj,
         vpn_manager = vpn_manager_obj, of_manager = of_manager_obj,
-        mtu_lan = mtu_lan, mtu_wan = mtu_wan, mptcp_manager = mptcp_manager
+        mtu_lan = mtu_lan, mtu_wan = mtu_wan, mptcp_manager = mptcp_manager,
+        self_vni = self_vni
         )
     
     #Init the queue manager

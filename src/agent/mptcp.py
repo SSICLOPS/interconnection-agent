@@ -128,6 +128,7 @@ class Mptcp_manager(object):
             recreate=True
             )
         
+        
         proxy.routing_table_id = 100
         
         self.add_proxy_wan(proxy)
@@ -202,11 +203,16 @@ class Mptcp_manager(object):
             
             #If that was the first address, use it as default route
             if not default:
-                pyroute_utils.add_route(netns, gateway = mptcp_net.gateway.exploded)
+                pyroute_utils.add_route(netns, 
+                    gateway = mptcp_net.gateway.exploded
+                    )
                 default = True
             
             #Set a rule so that traffic from that IP goes to a separate table
-            pyroute_utils.add_rule(netns, table = proxy.routing_table_id, src = address)
+            pyroute_utils.add_rule(netns, table = proxy.routing_table_id, 
+                src = address
+                )
+
             
             #Add the link route and the default route
             pyroute_utils.add_route(netns, dst = mptcp_net.network.with_prefixlen,
@@ -227,6 +233,7 @@ class Mptcp_manager(object):
                 )
             
             
+            
             if mptcp_net.nated:
                 # add the iptables DNAT rule on ext interface
                 iptables.addRules(iptables.def_DNAT(mptcp_net.external_interface,
@@ -234,11 +241,15 @@ class Mptcp_manager(object):
                     ))
             
                 #Create a dummy with the address to trick the mptcp stack
+                dum_name = "dum{}".format(mptcp_net.external_interface)
                 dum_idx = pyroute_utils.createLink(netns, 
-                    "dummy{}".format(mptcp_net.external_interface), type = "dummy")
+                        dum_name, type = "dummy",
+                        )
+
+                pyroute_utils.setUp(netns, idx = dum_idx)
                 pyroute_utils.flush_addresses(netns, dum_idx)
                 pyroute_utils.add_address(netns, dum_idx, 
-                    mptcp_net.external_ip.exploded, mptcp_net.net_mask
+                    mptcp_net.external_ip.exploded, 32
                     )
                 
                 
@@ -406,6 +417,7 @@ class Mptcp_network(object):
                 table = self.routing_table_id,
                 oif = net_if_idx,
                 )
+            
             pyroute_utils.add_route(self.ipr, gateway = self.gateway_address, 
                 table = self.routing_table_id
                 )           
@@ -413,6 +425,12 @@ class Mptcp_network(object):
             pyroute_utils.flush_addresses(self.ipr, self.bridge_idx)
             pyroute_utils.add_address(self.ipr, self.bridge_idx, self.gateway.exploded,
                 self.net_mask
+                )
+            pyroute_utils.add_route(self.ipr, dst = self.network.with_prefixlen,
+                proto = "static", scope = "link",
+                prefsrc = self.gateway.exploded,
+                table = self.routing_table_id,
+                oif = self.bridge_idx,
                 )
         else:
             

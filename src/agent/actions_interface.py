@@ -75,12 +75,12 @@ async def action_del_expansion(agent, *args, **kwargs):
     return True
     
 async def action_add_proxy(agent, *args, **kwargs):
-    logging.debug("Creating expansion {}".format(kwargs["node_id"]))
+    logging.debug("Creating proxy {}".format(kwargs["node_id"]))
     agent.mptcp_manager.add_proxy(*args, **kwargs)
     return True
 
 async def action_del_proxy(agent, *args, **kwargs):
-    logging.debug("deleting expansion {}".format(kwargs["node_id"]))
+    logging.debug("deleting proxy {}".format(kwargs["node_id"]))
     agent.mptcp_manager.del_proxy(*args, **kwargs)
     return True
 

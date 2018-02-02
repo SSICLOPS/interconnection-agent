@@ -4,7 +4,7 @@ from aiohttp import web
 
 import utils
 from ipsec import ike_policy, ipsec_policy, vpn_connection
-from tunneling import l2_tunnel, network, expansion
+from tunneling import l2_tunnel, network, expansion, mptcp_proxy
 
 template_folder = ""
 
@@ -43,7 +43,8 @@ async def get_main(data_store, amqp):
                 "connections": connections,
                 "tunnels": lookup(utils.KEY_L2_TUNNEL, False, False),
                 "networks": lookup(utils.KEY_NETWORK, False, False),
-                "expansions": expansions
+                "expansions": expansions,
+                "mptcp_proxies": lookup(utils.KEY_MPTCP_PROXY, False, False),
                 }
             )
         )
@@ -140,4 +141,20 @@ async def create_expansion(data_store, amqp, **kwargs):
 async def delete_expansion(data_store, amqp, **kwargs):
     return await process_query(data_store, amqp, 
         expansion.delete_expansion, kwargs
+        )
+        
+        
+async def create_mptcp(data_store, amqp, **kwargs):
+    kwargs["peer_vni"] = int(kwargs["peer_vni"])
+    kwargs["peer_port"] = int(kwargs["peer_port"])
+    kwargs["self_port_lan"] = int(kwargs["self_port_lan"])
+    kwargs["self_port_wan"] = int(kwargs["self_port_wan"])
+    return await process_query(data_store, amqp, 
+        mptcp_proxy.create_mptcp_proxy, kwargs
+        )
+
+
+async def delete_mptcp(data_store, amqp, **kwargs):
+    return await process_query(data_store, amqp, 
+        mptcp_proxy.delete_mptcp_proxy, kwargs
         )

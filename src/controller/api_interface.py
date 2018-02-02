@@ -38,7 +38,7 @@ from aiohttp import web
 import utils
 import data_container
 from ipsec import ike_policy, ipsec_policy, vpn_connection
-from tunneling import l2_tunnel, network, expansion
+from tunneling import l2_tunnel, network, expansion, mptcp_proxy
 import gui
 
 async def test_callback(**kwargs):
@@ -173,9 +173,28 @@ api_mappings = [
             "intercloud_id_in"
             ], "opt_args" : ["node_id"]
         },
+        
+    {"method":"GET", "endpoint":"/mptcp", 
+        "callback":mptcp_proxy.get_mptcp_proxies, 
+        "url_args": [], "required_args" : [], "opt_args" : []
+        },
+    {"method":"GET", "endpoint":"/mptcp/{node_id}", 
+        "callback":mptcp_proxy.get_mptcp_proxies, "url_args": ["node_id"], 
+        "required_args" : [], "opt_args" : []
+        },
+    {"method":"DELETE", "endpoint":"/mptcp/{node_id}", 
+        "callback":mptcp_proxy.delete_mptcp_proxy, "url_args": ["node_id"], 
+        "required_args" : [], "opt_args" : []
+        },
+    {"method":"POST", "endpoint":"/mptcp", 
+        "callback":mptcp_proxy.create_mptcp_proxy, "url_args": [], 
+        "required_args" : ["name", "peer_vni", "agent_id", "peer_id", "peer_ip", 
+            "peer_port", "self_port_lan", "self_port_wan"
+            ], "opt_args" : ["node_id"]
+        },
     
     
-    
+
     
     
     {"method":"GET", "endpoint":"/gui", "callback":gui.get_main, 
@@ -238,4 +257,15 @@ api_mappings = [
         "callback":gui.delete_expansion, "url_args": ["node_id"], 
         "required_args" : [], "opt_args" : []
         },
-] 
+    {"method":"POST", "endpoint":"/gui/create-mptcp", 
+        "callback":gui.create_mptcp, "url_args": [], "required_args" : [
+            "name", "peer_vni", "agent_id", "peer_id", "peer_ip", 
+            "peer_port", "self_port_lan", "self_port_wan"
+            ], "opt_args" : []
+        },
+    {"method":"POST", "endpoint":"/gui/delete-mptcp/{node_id}", 
+        "callback":gui.delete_mptcp, "url_args": ["node_id"], 
+        "required_args" : [], "opt_args" : []
+        },
+]
+

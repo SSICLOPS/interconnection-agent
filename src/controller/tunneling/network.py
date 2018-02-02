@@ -45,6 +45,7 @@ class Network_schema(Schema):
     name             = fields.Str()
     node_id          = fields.Str(validate=utils.validate_uuid)
     cloud_network_id = fields.Int() #segmentation ID from OpenStack or 
+    mptcp            = fields.Boolean()
     # vlan ID if standalone
     
     @post_load

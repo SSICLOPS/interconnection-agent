@@ -52,7 +52,8 @@ _expansion_args = {
     "peer_vni": ("tunnel", "peer_vni"),
     "peer_name": ("tunnel", "name"),
     "tunnel_id": ("tunnel", "node_id"),
-    "intercloud_id": ("expansion", "intercloud_id")
+    "intercloud_id": ("expansion", "intercloud_id"),
+    "mptcp": ("network", "mptcp")
 }
 
 

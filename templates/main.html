@@ -7,6 +7,29 @@
     <body>
 
         <h2>Interconnection agent</h2>
+        
+        
+        <h3>Agents</h3>
+
+        <table border="1">
+            <tr>
+                <th><center>Id</center></th>
+                <th><center>VNI</center></th>
+                <th><center>Standalone</center></th>              
+                <th><center>Addresses</center></th>              
+                
+                
+            </tr>
+            {% for agent in agents %}
+            <tr>
+                <td><center>{{ agent["node_uuid"] }}</center></td>
+                <td><center>{{ agent["vni"] }}</center></td>
+                <td><center>{{ agent["standalone"] }}</center></td>
+                <td><center>{{ agent["addresses"] }}</center></td>
+            </tr>
+            {% endfor %}
+            
+        </table>
 
         <h3>IKE policies</h3>
 
@@ -342,6 +365,75 @@
                     <td><center><input type="text" name="name" size="5" style="border:none;"></center></td>
                     <td><center><input type="text" name="cloud_network_id" size="5" style="border:none;"></center></td>
                     <td><center>None</center></td>
+                    <td><center><input type="submit" value="Create" style="font-weight: bold;"></center></td>
+                </tr>
+            </form>
+        </table>
+        
+        <hr>
+
+        
+        <h3>MPTCP proxies</h3>
+
+        <table border="1">
+            <tr>
+                <th><center>Id</center></th>
+                <th><center>Name</center></th>
+                <th><center>Peer VNI</center></th>
+                <th><center>Proxy IP addresses</center></th>
+                <th><center>Peer ID</center></th>
+                <th><center>Peer IP address</center></th>
+                <th><center>Peer port</center></th>
+                <th><center>Port Lan</center></th>
+                <th><center>Port Wan</center></th>
+                <th></th>               
+                
+                
+            </tr>
+            {% for proxy in mptcp_proxies %}
+            <tr>
+                <td><center>{{ proxy["node_id"] }}</center></td>
+                <td><center>{{ proxy["name"] }}</center></td>
+                <td><center>{{ proxy["peer_vni"] }}</center></td>
+                <td><center>
+                {% for agent in agents %}
+                {% if agent["node_uuid"] == proxy["agent_id"] %}
+                {% for ip in agent.addresses %}
+                {{ ip }} 
+                {% endfor %}
+                {% endif %}
+                {% endfor %}
+                </center></td>
+                <td><center>{{ proxy["peer_id"] }}</center></td>
+                <td><center>{{ proxy["peer_ip"] }}</center></td>
+                <td><center>{{ proxy["peer_port"] }}</center></td>
+                <td><center>{{ proxy["self_port_lan"] }}</center></td>
+                <td><center>{{ proxy["self_port_wan"] }}</center></td>
+                <form method="POST" action="/gui/delete-mptcp/{{ proxy.node_id }}">
+                    <td><center><input type="submit" value="Delete" style="font-weight: bold;"></center></td>
+                </form>
+            </tr>
+            {% endfor %}
+
+            <form method="POST" action="/gui/create-mptcp">
+                <tr>
+                    <td><center>None</center></td>
+                    <td><center><input type="text" name="name" size="5" style="border:none;"></center></td>
+                    <td><center><input type="text" name="peer_vni" size="5" style="border:none;"></center></td>
+                    <td><center>
+                        <select name="agent_id"> 
+                            {% for agent in agents %}
+                            <option value="{{ agent.node_uuid }}" >
+                            {% for ip in agent.addresses %}{{ ip }} {% endfor %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </center></td>
+                    <td><center><input type="text" name="peer_id" size="5" style="border:none;"></center></td>
+                    <td><center><input type="text" name="peer_ip" size="5" style="border:none;"></center></td>
+                    <td><center><input type="text" name="peer_port" size="5" style="border:none;"></center></td>
+                    <td><center><input type="text" name="self_port_lan" size="5" style="border:none;"></center></td>
+                    <td><center><input type="text" name="self_port_wan" size="5" style="border:none;"></center></td>
                     <td><center><input type="submit" value="Create" style="font-weight: bold;"></center></td>
                 </tr>
             </form>

@@ -212,7 +212,8 @@ class Ovs_manager(object):
 
 
 
-    def _add_port(self, ret, name, bridge, args={}, vlan=None, recreate = False):
+    def _add_port(self, ret, name, bridge, args={}, vlan=None, mode="trunk", 
+            recreate = False):
         if ret == RETCODE_ERROR:
             raise RuntimeError
         #Incorrect configuration, delete the port to recreate
@@ -224,7 +225,7 @@ class Ovs_manager(object):
             ret = RETCODE_NOTOK
         #Create the port and modify the configuration
         if ret != RETCODE_OK:
-            ovs_utils.add_port(bridge, name, vlan=vlan, mode="trunk", silent=True)
+            ovs_utils.add_port(bridge, name, vlan=vlan, mode=mode, silent=True)
             ovs_utils.modify_port(name, True, **args)
             logging.debug("Port {} created".format( name ))
         else:
@@ -283,7 +284,10 @@ class Ovs_manager(object):
     def add_internal_port(self, bridge, name, vlan=None, recreate=False):
         ret = self._check_port(name, bridge, self._internal_port_conf_check, [])
         self._add_port(ret, name, bridge, args={
-                            "type": "internal"}, vlan=vlan, recreate=recreate)    
+                "type": "internal"
+                }, vlan=vlan, mode="access",
+            recreate=recreate
+            )    
         
         
 
