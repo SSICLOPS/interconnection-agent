@@ -297,26 +297,48 @@ def init_agent(argv):
     ovs_arch["dpid_in"] = ovs_manager_obj.dpid_in
     ovs_arch["dpid_out"] = ovs_manager_obj.dpid_out
     ovs_arch["dpid_tun"] = ovs_manager_obj.dpid_tun
-    ovs_arch["self_vni"] = config.getint('DEFAULT', 'self_vni')
-    self_vni = ovs_arch["self_vni"]
+    self_vni = config.getint('DEFAULT', 'self_vni')
     
     flow_ctl = config.get('DEFAULT', 'flow_control')
     if flow_ctl == "ovs-ofctl":
-        of_manager_obj = ofctl_manager.Ofctl_manager(**ovs_arch)
+        of_manager_obj = ofctl_manager.Ofctl_manager(self_vni = self_vni,
+            **ovs_arch
+            )
     else:
         raise Input_error("The given flow control method is not supported.")
 
-    mptcp_enabled = config.getboolean('DEFAULT', 'mptcp_enabled')
-    mptcp_conf_file = config.get('mptcp', 'mptcp_config_file')
-    dp_mptcp = config.get('mptcp', 'mptcp_bridge')
-    address_pool = ipaddress.ip_network(config.get('mptcp', 
-        'internal_address_pool'
-        ))
     
-    mptcp_manager = mptcp.Mptcp_manager( mptcp_conf_file, ovs_manager_obj, 
-        of_manager_obj, dp_mptcp, mptcp_enabled, address_pool
-        )
+    #Get the MPTCP configuration
+    mptcp_conf = {}
+    mptcp_conf["enabled"] = config.getboolean('DEFAULT', 'mptcp_enabled')
+    if mptcp_conf["enabled"]:
+        mptcp_conf["mptcp_conf_path"] = config.get('mptcp', 'mptcp_config_file')
+        mptcp_conf["ovs_manager"] = ovs_manager_obj
+        mptcp_conf["of_manager"] = of_manager_obj
+        mptcp_conf["dp_mptcp"] = config.get('mptcp', 'mptcp_bridge')
+        mptcp_conf["internal_net"] = ipaddress.ip_network(config.get('mptcp', 
+            'internal_address_pool'
+            ))
+        mptcp_conf["template_redir"] = file.get_filename(config, 'mptcp', 
+            "template_redir"
+            )
+        mptcp_conf["template_server"] = file.get_filename(config, 'mptcp', 
+            "template_server"
+            )
+        mptcp_conf["tmp_folder"] = file.get_filename(config, 'mptcp', 
+            "tmp_conf_folder", is_dir = True
+            )
+        mptcp_conf["exec_server"] = file.get_filename(config, 'mptcp', 
+            "exec_server"
+            )
+        mptcp_conf["exec_redir"] = file.get_filename(config, 'mptcp', 
+            "exec_redir"
+            )
+    
+    mptcp_manager = mptcp.Mptcp_manager( **mptcp_conf)
         
+        
+    #Install the flows on the switches
     of_manager_obj.init_flows()
     mptcp_manager.init_flows()
     

@@ -1,0 +1,8 @@
+{
+"server":"{{ server_ip }}",
+"server_port":"{{ server_port }}",
+"local_port":"{{ local_port }}",
+"local_address":"{{ local_ip }}",
+"password":"jenga!",
+"timeout":60,
+}

@@ -33,6 +33,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 import ipaddress
 import uuid
 import json
+from jinja2 import Environment, FileSystemLoader
+import os
+import traceback
+from pyroute2 import NSPopen
 
 import pyroute_utils
 import iptables
@@ -44,75 +48,75 @@ from netns.netns import NetNS
 def no_op(*args, **kwargs):
     return
     
-    
-"""
-#Notes on the flows :
-    for br-cloud-tun :
-    
-    for a network with mptcp, we need to get the broadcast ARP messages to learn
-    the IP to mac correspondance. So when the broadcast reaches the MPTCP_SPLIT
-    table, the TCP and the ARP of the network are resubmitted to MPTCP_APPLY,
-    the rest goes normally to the ROUTING table. 
-    for TCP:
-        - if peer_vni, move the vlan to packet mark, move the peer vni to the vlan, move the 
-        self vni to the packet mark (up), send to patch port
-    for ARP:
-        - if peer_vni, resumbit to ROUTING table, then do as for TCP
-    
-    Incoming packets :
-        the packet mark will have the in vlan tag and the peer VNI
-        matching on both of those, the vlan tag needs to be put to actual
-        vlan tag, and output to patch port.
-        
-    for br-cloud-mptcp:
-        from br-cloud-tun:
-            higher priority : if ARP, learn load mac_dst with mac_src if dst ip = 
-            query source ip, load vlan, match packet mark output patch, drop after
-            rest : normal
-        not from br-cloud-tun:
-            go to learnt table by default
-        
-"""
+
 
 class Mptcp_manager(object):
-    def __init__(self, mptcp_conf_path, ovs_manager, of_manager, dp_mptcp, 
-            enabled, internal_address_network ):
-        self.enabled = enabled
+    def __init__(self, **kwargs ):
+        utils3.set_attributes(self, override=True, **kwargs)
+        
+        #If MPTCP is disabled, do nothing when called
         if not self.enabled :
             self.add_proxy = no_op
             self.del_proxy = no_op
             return
+        
         self.ipr = pyroute_utils.createIpr()
-        self.ovs_manager = ovs_manager
-        self.of_manager = of_manager
         self.networks = {}
         self.proxies = {}
-        self.internal_net = internal_address_network
-        self.available_internal_ips = set(internal_address_network.hosts())
-        self.internal_netmask = internal_address_network.prefixlen
+        
+        #Get the available internal IP addresses to use on the Lan side
+        self.available_internal_ips = set(self.internal_net.hosts())
+        self.internal_netmask = self.internal_net.prefixlen
+        #Internal gateway is a fake gateway used to send all traffic to
+        #using a static arp entry. the mac addresses are then rewritten by the
+        #switch
         self.internal_gateway = self.get_next_addr_int()
-        with open(mptcp_conf_path, "r") as file:
+        
+        #Parse the network configuration file
+        with open(self.mptcp_conf_path, "r") as file:
             network_configs = json.load(file)
         self.routing_table_id = 100
+        #For each network in the config
         for network_config in network_configs:
-            if network_config["name"] in self.networks:
+            #Detect duplicates based on external interface
+            if network_config["external_interface"] in self.networks:
                 raise ValueError("Duplicated MPTCP network name")
+            #Initialize the MPTCP network
             mptcp_net = Mptcp_network(ipr = self.ipr, 
                 routing_table_id = self.routing_table_id, **network_config
                 )
             self.routing_table_id += 1
-            self.networks[mptcp_net.name] = mptcp_net
-        self.ovs_manager.set_infra_mptcp(dp_mptcp)
+            self.networks[mptcp_net.external_interface] = mptcp_net
+        
+        #Create the switch infrastructure on lan side
+        self.ovs_manager.set_infra_mptcp(self.dp_mptcp)
+        
+        #Create the Jinja2 environments for the shadowsocks configuration files,
+        #for ss-redir
+        self.redir_template_folder, self.redir_template_file = os.path.split(
+            self.template_redir)
+        self.redir_env = Environment(
+            autoescape=False,
+            loader=FileSystemLoader(self.redir_template_folder),
+            trim_blocks=False)
+        
+        #for ss-server
+        self.server_template_folder, self.server_template_file = os.path.split(
+            self.template_server)
+        self.server_env = Environment(
+            autoescape=False,
+            loader=FileSystemLoader(self.server_template_folder),
+            trim_blocks=False)
 
+    #Initialize the flows
     def init_flows(self):
-        self.of_manager.init_mptcp(dp_mptcp = self.ovs_manager.dp_mptcp, 
+        if not self.enabled :
+            return
+        self.of_manager.init_mptcp(dp_mptcp = self.dp_mptcp, 
             dpid_mptcp = self.ovs_manager.dpid_mptcp, 
             patch_mptcp_port = self.ovs_manager.patchMptcpPort, 
             patch_tun_port_mptcp = self.ovs_manager.patchTunPortMptcp
             )
-
-        #self.add_proxy(peer_vni=156, self_port_wan=1080, self_port_lan=1082)
-        #self.del_proxy(peer_vni=256, self_port_wan=1080, self_port_lan=1082)
         
             
     def add_proxy(self, **kwargs):
@@ -123,33 +127,84 @@ class Mptcp_manager(object):
         proxy = Mptcp_proxy(ipr = self.ipr, **kwargs)
         self.proxies[proxy.peer_vni] = proxy
         
-        #create the namespace (this removes any previous namespace with same name
-        pyroute_utils.createNetNS("mptcp-{}".format(proxy.peer_vni), 
-            recreate=True
-            )
+        #create the namespace (this removes any previous namespace)
+        ns_name = "mptcp-{}".format(proxy.peer_vni)
+        pyroute_utils.createNetNS(ns_name, recreate=True)
         
         
         proxy.routing_table_id = 100
         
+        #perform the network setup on both sides
         self.add_proxy_wan(proxy)
         self.add_proxy_lan(proxy)
+        
+        #add the flows for this proxy
         self.of_manager.add_proxy(proxy.ovs_port_id, proxy.peer_vni, 
             proxy.int_mac_address
             )
+   
+        #Create the ss-redir configuration file
+        with open("{}/{}.redir".format(self.tmp_folder, 
+                proxy.peer_vni),"w") as redir_file:
+            args = {"server_ip": proxy.peer_ip,
+                "server_port": proxy.peer_port,
+                "local_ip": proxy.int_address.exploded,
+                "local_port": proxy.self_port_lan
+                }
+            conf = self.redir_env.get_template(self.redir_template_file).render(
+                args
+                )
+            redir_file.write(conf)
+        
+        
+        #For the server, if one address, as string, if several, as list
+        if len(proxy.ext_addresses) == 1:
+            for address in proxy.ext_addresses.values():
+                addresses_list = "\"{}\"".format(address)
+        elif len(proxy.ext_addresses) > 1:
+            addresses_list = "[\"{}\"]".format(
+                "\",\"".join(proxy.ext_addresses.values())
+                )
+            
+        #Create the ss-server configuration file
+        with open("{}/{}.server".format(self.tmp_folder, 
+                proxy.peer_vni),"w") as server_file:
+            server_file.write(self.server_env.get_template(
+                self.server_template_file).render(
+                    {"local_port": proxy.self_port_wan,
+                        "bind_ip": proxy.int_address.exploded,
+                        "server_address": addresses_list
+                        }
+                    )
+                )
+        
+        #Start the instances of shadowsocks
+        NSPopen(ns_name,[self.exec_redir, "-c", 
+            "{}/{}.redir".format(self.tmp_folder, 
+            proxy.peer_vni)
+            ])
+        NSPopen(ns_name,[self.exec_server, "-c", 
+            "{}/{}.server".format(self.tmp_folder, 
+                proxy.peer_vni
+                )
+            ])
+
+
         
     def del_proxy(self, **kwargs):
         if kwargs["peer_vni"] not in self.proxies:
             raise ValueError("MPTCP proxy not found")
-        
-        
         proxy = self.proxies[kwargs["peer_vni"]]
         
-        
+        #Delete the network infrastructure
         self.del_proxy_wan(proxy)
         self.del_proxy_lan(proxy)
         
-        netns_name = "mptcp-{}".format(proxy.peer_vni)
+        #del the flows for this proxy
+        self.of_manager.del_proxy(proxy.ovs_port_id, proxy.peer_vni)
         
+        #Delete the namespace
+        netns_name = "mptcp-{}".format(proxy.peer_vni)
         netns = pyroute_utils.getNetNS(netns_name)
         netns.close()
         netns.remove()
@@ -159,19 +214,18 @@ class Mptcp_manager(object):
         
         
     def add_proxy_wan(self, proxy):
-        
         default = False
-        
         
         #For each public interface of the host, create a pair of veth and 
         # configure the routing properly
-        for net_name in self.networks:
-            mptcp_net = self.networks[net_name]
+        for external_interface in self.networks:
+            mptcp_net = self.networks[external_interface]
+            
             veth_name = "mptcp{}s{}".format(
-                    proxy.peer_vni, mptcp_net.external_interface
+                    proxy.peer_vni, external_interface
                     )
             veth_ns_name = "mptcp{}n{}".format(
-                    proxy.peer_vni, mptcp_net.external_interface
+                    proxy.peer_vni, external_interface
                     )
             netns_name = "mptcp-{}".format(proxy.peer_vni)
             netns = pyroute_utils.getNetNS(netns_name)
@@ -215,7 +269,8 @@ class Mptcp_manager(object):
 
             
             #Add the link route and the default route
-            pyroute_utils.add_route(netns, dst = mptcp_net.network.with_prefixlen,
+            pyroute_utils.add_route(netns, 
+                dst = mptcp_net.network.with_prefixlen,
                 proto = "static", scope = "link",
                 prefsrc = address,
                 table = proxy.routing_table_id,
@@ -227,6 +282,7 @@ class Mptcp_manager(object):
             proxy.routing_table_id += 1
             
             
+            #Connect the other side of the veth
             pyroute_utils.setUp(self.ipr, idx = mptcp_net.bridge_idx)
             pyroute_utils.addIfBr(self.ipr, ifIdx=if_idx, 
                 brIdx = mptcp_net.bridge_idx
@@ -236,16 +292,17 @@ class Mptcp_manager(object):
             
             if mptcp_net.nated:
                 # add the iptables DNAT rule on ext interface
-                iptables.addRules(iptables.def_DNAT(mptcp_net.external_interface,
+                iptables.addRules(iptables.def_DNAT(external_interface,
                     proxy.self_port_wan, address, proxy.self_port_wan
                     ))
             
                 #Create a dummy with the address to trick the mptcp stack
-                dum_name = "dum{}".format(mptcp_net.external_interface)
+                dum_name = "dum{}".format(external_interface)
                 dum_idx = pyroute_utils.createLink(netns, 
                         dum_name, type = "dummy",
                         )
 
+                #Set the address
                 pyroute_utils.setUp(netns, idx = dum_idx)
                 pyroute_utils.flush_addresses(netns, dum_idx)
                 pyroute_utils.add_address(netns, dum_idx, 
@@ -259,21 +316,21 @@ class Mptcp_manager(object):
             
     def del_proxy_wan(self, proxy):
         
-        #For each public interface of the host, create a pair of veth and 
-        # configure the routing properly
-        for net_name in self.networks:
+        #For each public interface of the host, delete a pair of veth and 
+        # deconfigure the routing properly
+        for external_interface in self.networks:
             
-            mptcp_net = self.networks[net_name]
+            mptcp_net = self.networks[external_interface]
             address = proxy.ext_addresses[mptcp_net.name].exploded
             
             if mptcp_net.nated:
-                # add the iptables DNAT rule on ext interface
-                iptables.delRules(iptables.def_DNAT(mptcp_net.external_interface,
+                # del the iptables DNAT rule on ext interface
+                iptables.delRules(iptables.def_DNAT(external_interface,
                     proxy.self_port_wan, address, proxy.self_port_wan
                     ))
            
             veth_name = "mptcp{}s{}".format(
-                    proxy.peer_vni, mptcp_net.external_interface
+                    proxy.peer_vni, external_interface
                     )
             
 
@@ -291,13 +348,18 @@ class Mptcp_manager(object):
 
     def add_proxy_lan(self, proxy):
         if_name = "mptcp{}".format(proxy.peer_vni)
+        netns_name = "mptcp-{}".format(proxy.peer_vni)
+        netns = pyroute_utils.getNetNS(netns_name)
+        
+        #Create the ovs internal port
+        #Need to always recreate it because if the port was in a namespace,
+        # and the namespace was deleted, the port will exist in OVS, not in 
+        # the root namespace.
         self.ovs_manager.add_internal_port(self.ovs_manager.dp_mptcp, if_name, 
             vlan=proxy.peer_vni, recreate=True
             )
         proxy.ovs_port_id = self.ovs_manager.find_port(if_name)
         
-        netns_name = "mptcp-{}".format(proxy.peer_vni)
-        netns = pyroute_utils.getNetNS(netns_name)
         
         #put it in the namespace
         ns_if_idx = pyroute_utils.setNetNS(self.ipr, netns_name, 
@@ -305,19 +367,19 @@ class Mptcp_manager(object):
             )
         pyroute_utils.setUp(netns, idx = ns_if_idx)
         
+        #Set the address on the lan side
         proxy.int_address = self.get_next_addr_int()
         address = proxy.int_address.exploded
-        
         pyroute_utils.add_address(netns, ns_if_idx, address,
                 self.internal_netmask
                 )
                 
+        #Find the mac address
         proxy.int_mac_address = pyroute_utils.getInterfaceMac(netns, ns_if_idx)
-
         if not proxy.int_mac_address:
             raise ValueError("Unable to find the mac address")
         
-        #Set a rule so that traffic from that IP goes to a separate table
+        #Set a rule so that traffic from the IP goes to a separate table
         pyroute_utils.add_rule(netns, table = proxy.routing_table_id, 
             src = address
             )
@@ -333,6 +395,7 @@ class Mptcp_manager(object):
             table = proxy.routing_table_id
             )
             
+        #Set the static arp entry for the fake gateway on lan
         utils.execute(
             "ip netns exec {} arp -s {} E1:8E:36:8C:F6:0D".format(
                 netns_name, self.internal_gateway.exploded
@@ -340,7 +403,7 @@ class Mptcp_manager(object):
             )
         proxy.routing_table_id += 1
         
-
+        #add the TCP redirect
         with NetNS(netns_name):
             iptables.addRules(iptables.def_REDIRECT(if_name, proxy.self_port_lan))
         netns.close()
@@ -372,6 +435,7 @@ class Mptcp_network(object):
         # - net_mask : the network mask
         # - external_ip : the IP of the host in the external network
         # - external_interface : the host interface (from config)
+        # - gateway_address : the external gateway address from config file
         
         #Create a bridge for that network
         self.bridge_idx = pyroute_utils.createLink(self.ipr,
@@ -385,31 +449,46 @@ class Mptcp_network(object):
             )
         self.available_addresses = set(network.hosts())
         
-        
+        #get the external IP and the mask
         external_ip_masked = pyroute_utils.get_ip_with_mask(self.ipr, 
             self.external_interface
             ).pop()
         self.external_ip = ipaddress.ip_address(external_ip_masked.split("/")[0])
         net_if_idx = pyroute_utils.getLink(self.ipr, self.external_interface)
         
+        #If the MPTCP network is nated
         if self.nated:
+            #Define the nated network characteristics
             self.gateway = self.get_next_addr()
             self.net_mask = network.prefixlen
             self.network = ipaddress.ip_network(
                 "{}/{}".format(self.gateway, self.net_mask), strict=False
                 )
+            
+            #get the external network (for routing purpose)
             gw_network = ipaddress.ip_network(external_ip_masked, strict=False)
+            
             # add the masquerade rule on ext interface
             iptables.addRules(iptables.def_masquerade([self.external_interface]))
             
-            #Add an ip rule for traffic from network to use specific routing table
+            #Add an ip rule for traffic from network to use source routing
             try:
-                pyroute_utils.del_rule(self.ipr, table = self.routing_table_id, src = self.network.with_prefixlen)
+                pyroute_utils.del_rule(self.ipr, table = self.routing_table_id, 
+                    src = self.network.with_prefixlen
+                    )
             except:
                 pass
-            pyroute_utils.add_rule(self.ipr, table = self.routing_table_id, src = self.network.with_prefixlen)
+            pyroute_utils.add_rule(self.ipr, table = self.routing_table_id, 
+                src = self.network.with_prefixlen
+                )
             
-            #populate the routing table
+            #Set the address on the bridge
+            pyroute_utils.flush_addresses(self.ipr, self.bridge_idx)
+            pyroute_utils.add_address(self.ipr, self.bridge_idx, self.gateway.exploded,
+                self.net_mask
+                )
+            
+            #populate the routing table, the routes for both links and the default
             pyroute_utils.flush_routes(self.ipr, table = self.routing_table_id)
             pyroute_utils.add_route(self.ipr, dst = gw_network.with_prefixlen,
                 proto = "static", scope = "link",
@@ -422,36 +501,34 @@ class Mptcp_network(object):
                 table = self.routing_table_id
                 )           
             
-            pyroute_utils.flush_addresses(self.ipr, self.bridge_idx)
-            pyroute_utils.add_address(self.ipr, self.bridge_idx, self.gateway.exploded,
-                self.net_mask
-                )
             pyroute_utils.add_route(self.ipr, dst = self.network.with_prefixlen,
                 proto = "static", scope = "link",
                 prefsrc = self.gateway.exploded,
                 table = self.routing_table_id,
                 oif = self.bridge_idx,
                 )
+        
+        #If not nated
         else:
             
-            self.network = ipaddress.ip_network(external_ip_masked)
+            #Get the network characteristics
+            self.network = ipaddress.ip_network(external_ip_masked, stric=False)
             self.gateway = ipaddress.ip_address(self.gateway_address)
-            
             self.net_mask = self.network.prefixlen
+            
+            #Remove the ip from the interface to add it on the bridge
             pyroute_utils.del_address(self.ipr, net_if_idx, self.external_ip.exploded,
                 self.net_mask)
-            pyroute_utils.addIfBr(self.ipr, ifIdx=net_if_idx, 
-                brIdx=self.bridge_idx
-                )
-               
-               
             pyroute_utils.flush_addresses(self.ipr, self.bridge_idx)
             pyroute_utils.add_address(self.ipr, self.bridge_idx, self.external_ip.exploded,
                 self.net_mask
                 )
             
-
-            
+            #Bridge the interface
+            pyroute_utils.addIfBr(self.ipr, ifIdx=net_if_idx, 
+                brIdx=self.bridge_idx
+                )
+               
             
     def get_next_addr(self):
         return self.available_addresses.pop()
@@ -463,9 +540,5 @@ class Mptcp_proxy(object):
     def __init__(self, **kwargs):
         utils3.set_attributes(self, override=True, **kwargs)
         self.ext_addresses = {}
-        
-        #requires :
-        #peer_vni
-        #self_port_wan
-        #self_port_lan
+
             

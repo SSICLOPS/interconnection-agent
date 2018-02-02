@@ -1,0 +1,7 @@
+{
+"server":{{ server_address }},
+"server_port":"{{ local_port }}",
+"bind_src_address":"{{ bind_ip }}",
+"password":"jenga!",
+"timeout":60,
+}

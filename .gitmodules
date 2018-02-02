@@ -4,3 +4,6 @@
 [submodule "src/netns"]
 	path = src/netns
 	url = git@github.com:maelk/python-netns.git
+[submodule "shadowsocks-libev"]
+	path = shadowsocks-libev
+	url = git@github.com:SSICLOPS/shadowsocks-libev.git

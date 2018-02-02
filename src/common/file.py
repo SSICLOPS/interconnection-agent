@@ -35,7 +35,7 @@ import os
 class Input_error(Exception):
     pass
 
-def get_filename(config, section, file):
+def get_filename(config, section, file, is_dir = False):
         filename = config.get(section, file)
         filename_tmp = filename
         
@@ -51,7 +51,9 @@ def get_filename(config, section, file):
         filename_tmp = filename
         
         #Check if it exists
-        if not os.path.isfile(filename_tmp):
+        if not os.path.isfile(filename_tmp) and not is_dir:
+            raise Input_error(filename + " does not exist")
+        elif not os.path.isdir(filename_tmp) and is_dir:
             raise Input_error(filename + " does not exist")
         
         return filename_tmp

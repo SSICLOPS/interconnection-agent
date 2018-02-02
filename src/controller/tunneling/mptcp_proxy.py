@@ -95,14 +95,15 @@ async def create_mptcp_proxy(data_store, amqp, **kwargs):
     await send_create_proxy(data_store, amqp, mptcp_proxy)
     raise web.HTTPAccepted(content_type="application/json",
         text = ret
-    )
-    
+    )  
     
 async def delete_mptcp_proxy(data_store, amqp, node_id):
     mptcp_proxy = utils.delete_object(data_store, amqp, node_id, utils.KEY_MPTCP_PROXY)
     await send_delete_proxy(data_store, amqp, mptcp_proxy)
     raise web.HTTPAccepted()
-    
+   
+
+   
 async def send_create_proxy(data_store, amqp, mptcp_proxy):
     await send_action_proxy(data_store, amqp, utils.ACTION_ADD_PROXY, 
         mptcp_proxy
@@ -125,7 +126,3 @@ async def send_action_proxy(data_store, amqp, action, mptcp_proxy):
     await amqp.publish_action(payload=payload, 
         node = agent_amqp, callback = utils.ack_callback,
         )
-    
- 
-
-
