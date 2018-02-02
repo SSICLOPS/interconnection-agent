@@ -35,6 +35,7 @@ import configparser
 import asyncio
 import logging.config
 import logging
+import traceback
 
 import amqp_controller
 import rest_server
@@ -132,10 +133,10 @@ def init_controller(argv):
         node_uuid=cloud_id,**amqp_auth
         )
     asyncio_loop.run_until_complete(amqp_client_obj.connect())
-    asyncio_loop.run_until_complete(rest_server.build_server(asyncio_loop, 
+    server = asyncio_loop.run_until_complete(rest_server.build_server(asyncio_loop, 
         rest_address, rest_port, data_store, amqp_client_obj
         ))
-    asyncio.ensure_future(amqp_client_obj.send_heartbeat(
+    heartbeat_future = asyncio.ensure_future(amqp_client_obj.send_heartbeat(
         amqp_client.AMQP_KEY_HEARTBEATS_CTRL
         ))
 
@@ -145,7 +146,15 @@ def init_controller(argv):
         asyncio_loop.run_forever()
     except KeyboardInterrupt:
         logging.info("Stopping")
+        
+    heartbeat_future.cancel()
+    amqp_client_obj.shutdown()
+    server.close()
+    asyncio_loop.run_until_complete(server.wait_closed())
+    try:
         asyncio.get_event_loop().close()
+    except:
+        traceback.print_exc
 
 if __name__ == "__main__":
    init_controller(sys.argv[1:])

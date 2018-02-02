@@ -75,6 +75,7 @@ class Amqp_client(object):
         #Initialize the agent
         utils3.set_attributes(self, override = False, **default_values)
         utils3.set_attributes(self, override = True, **kwargs)
+        self.running = True
         
         if self. port is None:
             if self.ssl:
@@ -177,15 +178,20 @@ class Amqp_client(object):
         self.connected.set()
         self.connect_lock.release()
         
-        
+    
+    def shutdown(self):
+        self.running = False
+    
     async def send_heartbeat(self, routing_key):
-        while True:
+        while self.running:
             await self.publish_msg(payload=self.hearbeat_payload,
                 properties = {"content_type":'application/json'},
                 exchange_name=AMQP_EXCHANGE_HEARTBEATS,
                 routing_key=routing_key
                 )
             await asyncio.sleep(3)
+        await self.protocol.close()
+        self.transport.close()
                 
     
     #Publish a message, handling exceptions if disconnected
