@@ -384,8 +384,9 @@ def init_agent(argv):
     try:
         asyncio_loop.run_forever()
     except KeyboardInterrupt:
-        logging.info("Stopping")
-        asyncio.get_event_loop().close()
+        pass
+    logging.info("Stopping")
+    asyncio_loop.close()
 
 if __name__ == "__main__":
    init_agent(sys.argv[1:])

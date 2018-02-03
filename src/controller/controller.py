@@ -136,7 +136,7 @@ def init_controller(argv):
     server = asyncio_loop.run_until_complete(rest_server.build_server(asyncio_loop, 
         rest_address, rest_port, data_store, amqp_client_obj
         ))
-    heartbeat_future = asyncio.ensure_future(amqp_client_obj.send_heartbeat(
+    asyncio.ensure_future(amqp_client_obj.send_heartbeat(
         amqp_client.AMQP_KEY_HEARTBEATS_CTRL
         ))
 
@@ -145,16 +145,11 @@ def init_controller(argv):
     try:
         asyncio_loop.run_forever()
     except KeyboardInterrupt:
-        logging.info("Stopping")
-        
-    heartbeat_future.cancel()
-    amqp_client_obj.shutdown()
+        pass
+    logging.info("Stopping")   
     server.close()
     asyncio_loop.run_until_complete(server.wait_closed())
-    try:
-        asyncio.get_event_loop().close()
-    except:
-        traceback.print_exc
+    asyncio.get_event_loop().close()
 
 if __name__ == "__main__":
    init_controller(sys.argv[1:])
