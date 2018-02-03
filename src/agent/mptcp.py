@@ -36,7 +36,7 @@ import json
 from jinja2 import Environment, FileSystemLoader
 import os
 import traceback
-from pyroute2 import NSPopen
+from subprocess import Popen
 
 import pyroute_utils
 import iptables
@@ -179,15 +179,18 @@ class Mptcp_manager(object):
                 )
         
         #Start the instances of shadowsocks
-        NSPopen(ns_name,[self.exec_redir, "-c", 
+        proxy.nsp_redir = Popen(["ip", "netns", "exec", ns_name, 
+            self.exec_redir, "-c", 
             "{}/{}.redir".format(self.tmp_folder, 
             proxy.peer_vni)
             ])
-        NSPopen(ns_name,[self.exec_server, "-c", 
+        proxy.nsp_server = Popen(["ip", "netns", "exec", ns_name, 
+            self.exec_server, "-c", 
             "{}/{}.server".format(self.tmp_folder, 
                 proxy.peer_vni
-                )
+                ),
             ])
+        
 
 
         
@@ -211,7 +214,10 @@ class Mptcp_manager(object):
         
         del self.proxies[kwargs["peer_vni"]]
         
-        
+        proxy.nsp_redir.terminate()
+        proxy.nsp_redir.kill()
+        proxy.nsp_server.terminate()
+        proxy.nsp_server.kill()
         
     def add_proxy_wan(self, proxy):
         default = False
