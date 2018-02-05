@@ -148,7 +148,8 @@ api_mappings = [
         },
     {"method":"POST", "endpoint":"/network", 
         "callback":network.create_network, "url_args": [], 
-        "required_args" : ["name", "cloud_network_id"], "opt_args" : ["node_id"]
+        "required_args" : ["name", "cloud_network_id", "mptcp"], 
+        "opt_args" : ["node_id"]
         },
     
     {"method":"GET", "endpoint":"/expansion", 
@@ -169,9 +170,8 @@ api_mappings = [
         },
     {"method":"POST", "endpoint":"/expansion", 
         "callback":expansion.create_expansion, "url_args": [], 
-        "required_args" : ["network_id", "tunnel_id", "intercloud_id_out", 
-            "intercloud_id_in"
-            ], "opt_args" : ["node_id"]
+        "required_args" : ["network_id", "tunnel_id", "intercloud_id"], 
+        "opt_args" : ["node_id"]
         },
         
     {"method":"GET", "endpoint":"/mptcp", 
@@ -241,7 +241,7 @@ api_mappings = [
         },
     {"method":"POST", "endpoint":"/gui/create-network", 
         "callback":gui.create_network, "url_args": [], "required_args" : [
-            "name", "cloud_network_id"
+            "name", "cloud_network_id", "mptcp"
             ], "opt_args" : []
         },
     {"method":"POST", "endpoint":"/gui/delete-network/{node_id}", 
@@ -250,7 +250,7 @@ api_mappings = [
         },
     {"method":"POST", "endpoint":"/gui/create-expansion", 
         "callback":gui.create_expansion, "url_args": [], "required_args" : [
-            "network_id", "tunnel_id", "intercloud_id_out", "intercloud_id_in"
+            "network_id", "tunnel_id", "intercloud_id"
             ], "opt_args" : []
         },
     {"method":"POST", "endpoint":"/gui/delete-expansion/{node_id}", 

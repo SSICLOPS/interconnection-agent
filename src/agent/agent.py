@@ -123,7 +123,7 @@ class Agent(object):
         self.ovs_manager.del_tun_port(port_name, kwargs["self_ip"], 
             kwargs["peer_ip"], kwargs["type"]
             )
-        self.tunnels_port_ids[kwargs["peer_vni"]].discard(port_id)
+        self.tunnels_port_ids[kwargs["peer_vni"]].remove(port_id)
         
         #Delete the tunnel flows
         self.of_manager.del_tunnel(port_id)

@@ -119,6 +119,7 @@ async def delete_connection(data_store, amqp, **kwargs):
 
 async def create_network(data_store, amqp, **kwargs):
     kwargs["cloud_network_id"] = int(kwargs["cloud_network_id"])
+    kwargs["mptcp"] = kwargs["mptcp"] == "True"
     return await process_query(data_store, amqp, 
         network.create_network, kwargs
         )
@@ -131,8 +132,7 @@ async def delete_network(data_store, amqp, **kwargs):
 
         
 async def create_expansion(data_store, amqp, **kwargs):
-    kwargs["intercloud_id_in"] = int(kwargs["intercloud_id_in"])
-    kwargs["intercloud_id_out"] = int(kwargs["intercloud_id_out"])
+    kwargs["intercloud_id"] = int(kwargs["intercloud_id"])
     return await process_query(data_store, amqp, 
         expansion.create_expansion, kwargs
         )

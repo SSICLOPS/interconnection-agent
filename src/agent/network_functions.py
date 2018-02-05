@@ -113,5 +113,6 @@ def setIptables(network_id, mtu):
         
         
 def removeNetns(network_id):
-    pyroute_utils.delNetNS("net-{}".format(network_id))
+    ns = pyroute_utils.getNetNS("net-{}".format(network_id))
+    pyroute_utils.delNetNS(ns)
     logging.debug("Network {} namespace removed".format(network_id))   

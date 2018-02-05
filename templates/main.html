@@ -335,6 +335,7 @@
                 <th><center>Id</center></th>
                 <th><center>Name</center></th>
                 <th><center>Cloud Id</center></th>
+                <th><center>MPTCP Enabled</center></th>
                 <th><center>Expansions</center></th>
                 <th></th>
             </tr>
@@ -344,6 +345,7 @@
                 <td><center>{{ net["node_id"] }}</center></td>
                 <td><center>{{ net["name"] }}</center></td>
                 <td><center>{{ net["cloud_network_id"] }}</center></td>
+                <td><center>{{ net["mptcp"] }}</center></td>
                 <td><center>{% for expansion in expansions %}
                     {% if net["node_id"] == expansion["network_id"] %}
                     {% for tunnel in tunnels %}
@@ -374,6 +376,12 @@
                     <td><center>None</center></td>
                     <td><center><input type="text" name="name" size="5" style="border:none;"></center></td>
                     <td><center><input type="text" name="cloud_network_id" size="5" style="border:none;"></center></td>
+                    <td><center>
+                        <select name="mptcp">
+                            <option value="True" selected>yes</option>
+                            <option value="False">no</option>
+                        </select>
+                    </center></td>
                     <td><center>None</center></td>
                     <td><center><input type="submit" value="Create" style="font-weight: bold;"></center></td>
                 </tr>
