@@ -138,7 +138,6 @@ class Amqp_controller(amqp_client.Amqp_client):
         if not self.data_store.has(payload["node_uuid"]):
             agent_obj = agent.Agent(**payload)
             self.data_store.add(agent_obj)
-            self.data_store.save(payload["node_uuid"])
             agent_obj.runtime_id = None
             agent_obj.previous_runtime_id = payload["runtime_id"]
             logging.info("Agent {} registered".format(payload["node_uuid"]))

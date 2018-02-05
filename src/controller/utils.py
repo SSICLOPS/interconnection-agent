@@ -151,7 +151,6 @@ def create_object(data_store, amqp, obj_schema, kwargs):
     except KeyError as e:
         raise web.HTTPConflict(text = "{}".format(e.args))
     obj_str = schema.dumps(obj).data
-    data_store.save(obj)
     return obj_str, obj
     
 def delete_object(data_store, amqp, node_id, key):
@@ -160,7 +159,6 @@ def delete_object(data_store, amqp, node_id, key):
     if data_store.has((KEY_IN_USE, node_id)):
         raise web.HTTPConflict(text = "Object in use")
     obj = data_store.get(node_id)
-    data_store.delete(node_id)
     return obj
     
 async def ack_callback(data_store, payload, action):

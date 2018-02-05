@@ -83,7 +83,7 @@ _type_eq = {
 class Data_container(container3.Container):
 
     def __init__(self,backend, mode):
-        super(Data_container, self).__init__(name="data", datatype="set")
+        super().__init__(name="data", datatype="set")
         self.store = backend
         # The mode is for the type of dump done to save data
         # either "node" if you want to save a single node, for example for Mysql
@@ -98,7 +98,7 @@ class Data_container(container3.Container):
 
 
     def lookup_list(self, key, update=True, check_expire=True):
-        ret = super(Data_container, self).lookup(
+        ret = super().lookup(
             key, update=update, check_expire=check_expire)
         
         # No elements with that key are stored
@@ -110,8 +110,21 @@ class Data_container(container3.Container):
             return {ret}
         
         return ret
+        
+    def remove(self, object):
+        super().remove(object)
+        self.delete(object)
+        
+        
+    def add(self, object):
+        super().add(object)
+        self.save(object)
+        
+    def updatekeys(self, object):
+        super().updatekeys(object)
+        self.save(object)
     
-    def _dump(self, node_id = None):
+    def _dump(self, node = None):
         # This is an internal function overridden in __init__ based on 
         # backend type
         pass
@@ -119,13 +132,13 @@ class Data_container(container3.Container):
         # as keys and the list of dictionaries containing the objects attributes
         # as value
         
-    def _delete(self, node_id = None):
+    def _delete(self, node = None):
         # This is an internal function overridden in __init__ based on 
         # backend type
         pass
         
 
-    def _dump_all(self, node_id):
+    def _dump_all(self, node):
         ret = {}
         
         #For all types of nodes, get the Schema and the nodes list
@@ -139,12 +152,7 @@ class Data_container(container3.Container):
         return ret
         
     
-    def _dump_node(self, node_id):
-        #Node not found -> No-op
-        if not self.has(node_id, check_expire=False):
-            return
-        node = self.get(node_id, update=False)
-        
+    def _dump_node(self, node):
         #fill the dictionnary using the keys defined
         node_type = type(node).__name__
         type_name = _type_eq[node_type]["node_type_name"]
@@ -182,11 +190,11 @@ class Data_container(container3.Container):
                         ))
                     sys.exit()
             
-    def save(self, node_id):
-        self.store.save(self._dump(node_id))
+    def save(self, node):
+        self.store.save(self._dump(node))
         
-    def delete(self, node_id):
-        self._delete(node_id)
+    def delete(self, node):
+        self._delete(node)
         
     def restore(self):
         self.load_nodes(self.store.load())
