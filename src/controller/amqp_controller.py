@@ -70,6 +70,7 @@ class Amqp_controller(amqp_client.Amqp_client):
             if kwargs["payload"]["operation"] == utils.ACTION_DIE:
                 queue = self.queues[node.node_uuid]
                 await queue.put(kwargs)
+                return
             kwargs["payload"] = json.dumps(kwargs["payload"])
             await self.publish_msg(**kwargs)
             return
@@ -94,20 +95,24 @@ class Amqp_controller(amqp_client.Amqp_client):
                 element = await queue.get()
             except:
                 return
-            if element["payload"]["operation"] == utils.ACTION_DIE:
+            
+            operation = element["payload"]["operation"]
+            if operation != utils.ACTION_DIE:
+                await agent_amqp.loading.wait()
+                
+            element["payload"] = json.dumps(element["payload"])
+            await self.publish_msg(**element)
+            
+            queue.task_done()
+            
+            if operation == utils.ACTION_DIE:
                 agent_amqp.loading.clear()
                 agent_amqp.restarting = True
-                queue.task_done()
                 #If we are restarting, clear the queue
                 while not queue.empty():
                     queue.get_nowait()
                     queue.task_done()
-                continue
-            
-            await agent_amqp.loading.wait()
-            element["payload"] = json.dumps(element["payload"])
-            await self.publish_msg(**element)
-            queue.task_done()
+
                 
         
     async def action_callback(self, channel, body, envelope, properties):
