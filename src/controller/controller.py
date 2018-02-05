@@ -35,7 +35,6 @@ import configparser
 import asyncio
 import logging.config
 import logging
-import traceback
 
 import amqp_controller
 import rest_server

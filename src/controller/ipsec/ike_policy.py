@@ -93,7 +93,8 @@ async def create_ike_policy(data_store, amqp, **kwargs):
     
     
 async def delete_ike_policy(data_store, amqp, node_id):
-    utils.delete_object(data_store, amqp, node_id, utils.KEY_POLICY_IKE)
+    obj = utils.delete_object(data_store, amqp, node_id, utils.KEY_POLICY_IKE)
+    data_store.remove(obj)
     raise web.HTTPOk()
     
 

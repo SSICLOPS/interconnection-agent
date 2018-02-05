@@ -35,7 +35,6 @@ import uuid
 import json
 from jinja2 import Environment, FileSystemLoader
 import os
-import traceback
 from subprocess import Popen
 
 import pyroute_utils

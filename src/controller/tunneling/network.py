@@ -86,25 +86,26 @@ async def get_networks(data_store, amqp, node_id=None):
     
 async def create_network(data_store, amqp, **kwargs):
     ret, _ = utils.create_object(data_store, amqp, Network_schema, kwargs)
-    raise web.HTTPAccepted(content_type="application/json", text = ret)
+    raise web.HTTPOk(content_type="application/json", text = ret)
     
     
 async def delete_network(data_store, amqp, node_id):
     network = utils.delete_object(data_store, amqp, node_id, utils.KEY_NETWORK)
     await remove_all_propagated_network(data_store, amqp, network)
+    data_store.remove(network)
     raise web.HTTPAccepted()
     
    
     
-async def send_create_network(data_store, amqp, agent, network):
-    await send_action_network(data_store, amqp, utils.ACTION_ADD_NETWORK, 
-        network, agent
+async def send_create_network(data_store, amqp, agent, network, no_wait = False):
+    await _send_action_network(data_store, amqp, utils.ACTION_ADD_NETWORK, 
+        network, agent, no_wait
         )
     network.agents_deployed.add(agent.node_uuid)
 
-async def send_delete_network(data_store, amqp, agent, network):
-    await send_action_network(data_store, amqp, utils.ACTION_DEL_NETWORK, 
-        network, agent
+async def send_delete_network(data_store, amqp, agent, network, no_wait = False):
+    await _send_action_network(data_store, amqp, utils.ACTION_DEL_NETWORK, 
+        network, agent, no_wait
         ) 
     network.agents_deployed.discard(agent.node_uuid)
     
@@ -114,10 +115,11 @@ async def remove_all_propagated_network(data_store, amqp, network):
         agent = data_store.get(agent_uuid)
         await send_delete_network(data_store, amqp, agent, network)
     
-async def send_action_network(data_store, amqp, action, network, agent_amqp):
+async def _send_action_network(data_store, amqp, action, network, agent_amqp,
+        no_wait):
     payload = {"operation":action,
         "kwargs": Network_schema().dump(network).data
     }
     await amqp.publish_action(payload=payload, 
-        node = agent_amqp, callback = utils.ack_callback,
+        node = agent_amqp, callback = utils.ack_callback, no_wait = no_wait
     )

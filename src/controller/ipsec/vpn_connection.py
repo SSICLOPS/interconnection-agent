@@ -67,6 +67,7 @@ _jinja_con_args = {
     "ipsec_encapsulation_mode": ("ipsec", "encapsulation_mode"),
     "ipsec_name": ("ipsec", "name"),
     "secret": ("connection", "secret"),
+    "status": ("connection", "status"),
 }
 
 def convert_con_template(**kwargs):
@@ -88,6 +89,8 @@ class Vpn_connection(container3.ContainerNode):
         self.node_id = str(uuid.uuid4())
         utils3.set_attributes(self, override = True, **kwargs)
         super().__init__(name="Vpn_connection")
+        self.status = "Pending"
+        self.deleting = False
             
 
     def lookupkeys(self):
@@ -138,20 +141,26 @@ async def get_vpn_connections(data_store, amqp, node_id=None):
     
     
 async def create_vpn_connection(data_store, amqp, **kwargs):
-    ret, vpn_connection = utils.create_object(data_store, amqp, Vpn_connection_schema, kwargs)
+    ret, vpn_connection = utils.create_object(data_store, amqp, 
+        Vpn_connection_schema, kwargs
+        )
     await send_create_connection(data_store, amqp, vpn_connection)
-    raise web.HTTPCreated(content_type="application/json",
+    raise web.HTTPAccepted(content_type="application/json",
         text = ret
     )
     
     
 async def delete_vpn_connection(data_store, amqp, node_id):
-    vpn_connection = utils.delete_object(data_store, amqp, node_id, utils.KEY_CONNECTION)
+    vpn_connection = utils.delete_object(data_store, amqp, node_id, 
+        utils.KEY_CONNECTION
+        )
+    vpn_connection.status = "Deleting"
+    vpn_connection.deleting = True
     await send_delete_connection(data_store, amqp, vpn_connection)
-    raise web.HTTPOk()
+    raise web.HTTPAccepted()
     
 
-async def send_create_connection(data_store, amqp, connection):
+async def send_create_connection(data_store, amqp, connection, no_wait = False):
     tunnel = data_store.get(connection.tunnel_id)
     if not data_store.has((utils.KEY_AGENT, utils.KEY_AGENT_IP, tunnel.self_ip)):
         return
@@ -166,11 +175,11 @@ async def send_create_connection(data_store, amqp, connection):
         ike = ike, ipsec = ipsec, self_id = agent_amqp.node_uuid
         )
     
-    await send_action_connection(agent_amqp, amqp, utils.ACTION_ADD_CONNECTION, 
-        data
+    await _send_action_connection(agent_amqp, amqp, utils.ACTION_ADD_CONNECTION, 
+        data, no_wait
         )
 
-async def send_delete_connection(data_store, amqp, connection):
+async def send_delete_connection(data_store, amqp, connection, no_wait = False):
     data = {"node_id":connection.node_id}
     tunnel = data_store.get(connection.tunnel_id)
     if not data_store.has((utils.KEY_AGENT, utils.KEY_AGENT_IP, tunnel.self_ip)):
@@ -179,15 +188,16 @@ async def send_delete_connection(data_store, amqp, connection):
         tunnel.self_ip
         ))
     
-    await send_action_connection(agent_amqp, amqp, utils.ACTION_DEL_CONNECTION, 
-        data
+    await _send_action_connection(agent_amqp, amqp, utils.ACTION_DEL_CONNECTION, 
+        data, no_wait
         ) 
 
     
-async def send_action_connection(agent_amqp, amqp, action, connection_args):
+async def _send_action_connection(agent_amqp, amqp, action, connection_args, 
+        no_wait):
     payload = {"operation":action,
         "kwargs": connection_args
         }
     await amqp.publish_action(payload=payload, 
-        node = agent_amqp, callback = utils.ack_callback,
+        node = agent_amqp, callback = utils.ack_callback, no_wait = no_wait
         )

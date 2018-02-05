@@ -34,6 +34,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 import json
 import logging
 import uuid
+import asyncio
 
 from common import amqp_client
 import agent
@@ -47,6 +48,7 @@ class Amqp_controller(amqp_client.Amqp_client):
         self.actions_list = {}
         self.callbacks_list = {}
         self.data_store = data_store
+        self.queues = {}
         
     async def publish_action(self, node, callback=None, no_wait=False, **kwargs):
         if "properties" not in kwargs:
@@ -62,11 +64,51 @@ class Amqp_controller(amqp_client.Amqp_client):
         if callback:
             self.actions_list[action_uuid] = kwargs["payload"]
             self.callbacks_list[action_uuid] = callback
-        kwargs["payload"] = json.dumps(kwargs["payload"])
         
-        if not no_wait:
-            await node.loading.wait()
-        await self.publish_msg(**kwargs)
+        
+        if no_wait :
+            if kwargs["payload"]["operation"] == utils.ACTION_DIE:
+                queue = self.queues[node.node_uuid]
+                await queue.put(kwargs)
+            kwargs["payload"] = json.dumps(kwargs["payload"])
+            await self.publish_msg(**kwargs)
+            return
+        else:
+            if node.node_uuid not in self.queues or node.restarting:
+                return
+            queue = self.queues[node.node_uuid]
+            await queue.put(kwargs)
+            return
+    
+    def create_agent_queue(self, node_id):
+        if node_id not in self.queues:
+            self.queues[node_id] = asyncio.Queue()
+            asyncio.ensure_future(self.process_agent_queue(node_id))
+        
+    
+    async def process_agent_queue(self, node_id):
+        agent_amqp = self.data_store.get((utils.KEY_AGENT, node_id))
+        queue = self.queues[node_id]
+        while True:
+            try:
+                element = await queue.get()
+            except:
+                return
+            if element["payload"]["operation"] == utils.ACTION_DIE:
+                agent_amqp.loading.clear()
+                agent_amqp.restarting = True
+                queue.task_done()
+                #If we are restarting, clear the queue
+                while not queue.empty():
+                    queue.get_nowait()
+                    queue.task_done()
+                continue
+            
+            await agent_amqp.loading.wait()
+            element["payload"] = json.dumps(element["payload"])
+            await self.publish_msg(**element)
+            queue.task_done()
+                
         
     async def action_callback(self, channel, body, envelope, properties):
         payload = json.loads(body.decode("utf-8"))
@@ -74,7 +116,7 @@ class Amqp_controller(amqp_client.Amqp_client):
             if payload["action_uuid"] in self.actions_list:
                 callback = self.callbacks_list[payload["action_uuid"]]
                 if callback is not None:
-                    await callback(payload, 
+                    await callback(self.data_store, payload, 
                         self.actions_list[payload["action_uuid"]]
                         )
                 del self.callbacks_list[payload["action_uuid"]]
@@ -95,6 +137,7 @@ class Amqp_controller(amqp_client.Amqp_client):
             agent_obj.runtime_id = None
             agent_obj.previous_runtime_id = payload["runtime_id"]
             logging.info("Agent {} registered".format(payload["node_uuid"]))
+            self.create_agent_queue(agent_obj.node_uuid)
         
         else:
             agent_obj = self.data_store.get(payload["node_uuid"])
@@ -108,13 +151,12 @@ class Amqp_controller(amqp_client.Amqp_client):
                     logging.info("Agent {} restarted".format(payload["node_uuid"]))
                     agent_obj.update(**payload)
                     self.data_store.updatekeys(agent_obj)
-                    #THis should be set after the reload only, but needs to add all no_wait flags
-                    agent_obj.loading.set()
                     await agent_obj.reload(self.data_store, self)
+                    agent_obj.loading.set()
             
             # The runtime_id has changed unexpectedly, mark for kill
             elif ( agent_obj.runtime_id != payload["runtime_id"] ):
-                agent_obj.loading.clear()
+                self.create_agent_queue(agent_obj.node_uuid)
                 agent_obj.previous_runtime_id = payload["runtime_id"]
                 agent_obj.runtime_id = None
                 logging.info(

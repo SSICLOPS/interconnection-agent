@@ -151,11 +151,19 @@ def delete_object(data_store, amqp, node_id, key):
     if data_store.has((KEY_IN_USE, node_id)):
         raise web.HTTPConflict(text = "Object in use")
     obj = data_store.get(node_id)
-    data_store.remove(obj)
     data_store.delete(node_id)
     return obj
     
-async def ack_callback(payload, action):
+async def ack_callback(data_store, payload, action):
+    obj = data_store.lookup(action["kwargs"]["node_id"], False, False)
+    if obj:
+        if payload["operation"] == ACTION_NACK:
+            obj.status = "Failed"
+        elif action["operation"].startswith("Add"):
+            if payload["operation"] == ACTION_ACK:
+                obj.status = "Ok"
+        elif action["operation"].startswith("Del"):
+            data_store.remove(obj)
     success = "un" if payload["operation"] == ACTION_NACK else ""
     logging.debug("{} completed {}successfully for {}".format(
         action["operation"], success, action["kwargs"]["node_id"]

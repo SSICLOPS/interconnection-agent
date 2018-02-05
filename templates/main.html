@@ -186,6 +186,7 @@
                 <th><center>Peer VNI</center></th>
                 <th><center>Type</center></th>
                 <th><center>Enabled</center></th>
+                <th><center>Status</center></th>
                 <th></th>
             </tr>
             {% for tunnel in tunnels %}
@@ -199,6 +200,7 @@
                 <td><center>{{ tunnel["peer_vni"] }}</center></td>
                 <td><center>{{ tunnel["type"] }}</center></td>
                 <td><center>{{ tunnel["enabled"] }}</center></td>
+                <td><center>{{ tunnel["status"] }}</center></td>
                 <form method="POST" action="/gui/delete-tunnel/{{ tunnel.node_id }}">
                     <td><center><input type="submit" value="Delete" style="font-weight: bold;"></center></td>
                 </form>
@@ -232,6 +234,7 @@
                             <option value="False">no</option>
                         </select>
                     </center></td>
+                    <td></td>
                     <td><center><input type="submit" value="Create" style="font-weight: bold;"></center></td>
                 </tr>
             </form>
@@ -253,6 +256,7 @@
                 <th><center>dpd_interval</center></th>
                 <th><center>dpd_timeout</center></th>
                 <th><center>initiator</center></th>
+                <th><center>Status</center></th>
                 <th></th>
 
             </tr>
@@ -268,6 +272,7 @@
                 <td><center>{{ con["dpd_interval"] }}</center></td>
                 <td><center>{{ con["dpd_timeout"] }}</center></td>
                 <td><center>{{ con["initiator"] }}</center></td>
+                <td><center>{{ con["status"] }}</center></td>
                 <form method="POST" action="/gui/delete-connection/{{ con.node_id }}">
                     <td><center><input type="submit" value="Delete" style="font-weight: bold;"></center></td>
                 </form>
@@ -311,6 +316,7 @@
                             <option value="start" selected>start</option>
                         </select>
                     </center></td>
+                    <td></td>
                     <td><center><input type="submit" value="Create" style="font-weight: bold;"></center></td>
                 </tr>
             </form>
@@ -341,7 +347,7 @@
                     {% for tunnel in tunnels %}
                     {% if tunnel["node_id"] == expansion["tunnel_id"] %}
                     <form method="POST" action="/gui/delete-expansion/{{ expansion["node_id"] }}">
-                        {{ tunnel["name"] }} - Id: {{ expansion["intercloud_id"] }}<input type="submit" value="Delete" style="font-weight: bold;">
+                        {{ tunnel["name"] }} - Id : {{ expansion["intercloud_id"] }} - Status : {{ expansion["status"] }}<input type="submit" value="Delete" style="font-weight: bold;">
                     </form>
                     {% endif %}{% endfor %}{% endif %}{% endfor %}
                     <form method="POST" action="/gui/create-expansion">
@@ -388,6 +394,7 @@
                 <th><center>Peer port</center></th>
                 <th><center>Port Lan</center></th>
                 <th><center>Port Wan</center></th>
+                <th><center>Status</center></th>
                 <th></th>
 
 
@@ -411,6 +418,7 @@
                 <td><center>{{ proxy["peer_port"] }}</center></td>
                 <td><center>{{ proxy["self_port_lan"] }}</center></td>
                 <td><center>{{ proxy["self_port_wan"] }}</center></td>
+                <td><center>{{ proxy["status"] }}</center></td>
                 <form method="POST" action="/gui/delete-mptcp/{{ proxy.node_id }}">
                     <td><center><input type="submit" value="Delete" style="font-weight: bold;"></center></td>
                 </form>
@@ -436,6 +444,7 @@
                     <td><center><input type="text" name="peer_port" size="5" style="border:none;"></center></td>
                     <td><center><input type="text" name="self_port_lan" size="5" style="border:none;"></center></td>
                     <td><center><input type="text" name="self_port_wan" size="5" style="border:none;"></center></td>
+                    <td></td>
                     <td><center><input type="submit" value="Create" style="font-weight: bold;"></center></td>
                 </tr>
             </form>

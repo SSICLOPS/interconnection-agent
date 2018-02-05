@@ -34,7 +34,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 import asyncio
 import logging
 from marshmallow import Schema, fields, post_load, ValidationError, validate
-import traceback
 
 import utils
 from tunneling import l2_tunnel, network, expansion, mptcp_proxy
@@ -60,6 +59,8 @@ class Agent(container3.ContainerNode):
         self.addresses = []
         utils3.set_attributes(self, override = True, **kwargs)
         self.loading = asyncio.Event()
+        self.loading.set()
+        self.restarting = False
 
     def lookupkeys(self):
         keys = []
@@ -82,33 +83,59 @@ class Agent(container3.ContainerNode):
         
         #find all tunnels on this node
         for address in self.addresses:
-            tunnels.extend(data_store.lookup_list((utils.KEY_L2_TUNNEL, 
+            for tunnel_obj in data_store.lookup_list((utils.KEY_L2_TUNNEL, 
                     utils.KEY_L2_TUNNEL_IP, address
                     ), False, False
-                ))
+                    ):
+                if tunnel_obj.deleting:
+                    data_store.remove(tunnel_obj)
+                else:
+                    tunnels.append(tunnel_obj)
         logging.debug("Applying tunnels configuration: {}".format(
-            [tunnel.node_id for tunnel in tunnels]
+            [tunnel_obj.node_id for tunnel_obj in tunnels]
             ))
         
         #For each, create them and find associated connections and expansions
         for tunnel in tunnels:
-            await l2_tunnel.send_create_tunnel(data_store, amqp, tunnel)
-            connections.extend(data_store.lookup_list((utils.KEY_IN_USE, 
+            for connection_obj in data_store.lookup_list((utils.KEY_IN_USE, 
                     utils.KEY_CONNECTION, tunnel.node_id
                     ), False, False
-                ))
-            expansions.extend(data_store.lookup_list((utils.KEY_IN_USE, 
+                    ):
+                if connection_obj.deleting:
+                    data_store.remove(connection_obj)
+                else:
+                    connections.append(connection_obj)
+            for expansion_obj in data_store.lookup_list((utils.KEY_IN_USE, 
                     utils.KEY_EXPANSION, tunnel.node_id
                     ), False, False
-                ))
+                    ):
+                if expansion_obj.deleting:
+                    data_store.remove(expansion_obj)
+                else:
+                    expansions.append(expansion_obj)
+        
+        mptcp_proxies = data_store.lookup_list((utils.KEY_MPTCP_PROXY, 
+                utils.KEY_AGENT, self.node_uuid), False, False)
+        for mptcp_proxy_obj in mptcp_proxies:
+            if mptcp_proxy_obj.deleting:
+                data_store.remove(mptcp_proxy_obj)
+        mptcp_proxies = data_store.lookup_list((utils.KEY_MPTCP_PROXY, 
+                utils.KEY_AGENT, self.node_uuid), False, False)
+                
+        self.restarting = False
+        
+        for tunnel in tunnels:
+            await l2_tunnel.send_create_tunnel(data_store, amqp, tunnel,
+                no_wait = True)
+        
         logging.debug("Applying connections configuration: {}".format(
             [con.node_id for con in connections]
             ))
-        
+
         #For each connection, create it
         for connection in connections:
             await vpn_connection.send_create_connection(data_store, amqp, 
-                connection
+                connection, no_wait = True
                 )
         
         
@@ -121,11 +148,12 @@ class Agent(container3.ContainerNode):
         #Create all the expansions
         for expansion_obj in expansions:
             await expansion.send_create_expansion(data_store, amqp, 
-                expansion_obj
+                expansion_obj, no_wait = True
                 )
-        for mptcp_proxy_obj in data_store.lookup_list((utils.KEY_MPTCP_PROXY, 
-                utils.KEY_AGENT, self.node_uuid), False, False):  
-            await mptcp_proxy.send_create_proxy(data_store, amqp, mptcp_proxy_obj)
+        for mptcp_proxy_obj in mptcp_proxies:  
+            await mptcp_proxy.send_create_proxy(data_store, amqp, 
+                mptcp_proxy_obj, no_wait = True
+                )
             
     async def update_tunnels(self, data_store, amqp, old_addresses, new_addresses):
         #Remove the expansions using the tunnels and the tunnels

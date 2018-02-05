@@ -62,6 +62,8 @@ class L2_tunnel(container3.ContainerNode):
         self.node_id = str(uuid.uuid4())
         utils3.set_attributes(self, override = True, **kwargs)
         super().__init__(name="L2_tunnel")
+        self.status = "Pending"
+        self.deleting = False
             
 
     def lookupkeys(self):
@@ -95,17 +97,23 @@ async def create_l2_tunnel(data_store, amqp, **kwargs):
     
 async def delete_l2_tunnel(data_store, amqp, node_id):
     l2_tunnel = utils.delete_object(data_store, amqp, node_id, utils.KEY_L2_TUNNEL)
+    l2_tunnel.status = "Deleting"
+    l2_tunnel.deleting = True
     await send_delete_tunnel(data_store, amqp, l2_tunnel)
     raise web.HTTPAccepted()
     
-async def send_create_tunnel(data_store, amqp, tunnel):
-    await send_action_tunnel(data_store, amqp, utils.ACTION_ADD_TUNNEL, tunnel)
+async def send_create_tunnel(data_store, amqp, tunnel, no_wait = False):
+    await _send_action_tunnel(data_store, amqp, utils.ACTION_ADD_TUNNEL, tunnel,
+        no_wait
+        )
 
-async def send_delete_tunnel(data_store, amqp, tunnel):
-    await send_action_tunnel(data_store, amqp, utils.ACTION_DEL_TUNNEL, tunnel) 
+async def send_delete_tunnel(data_store, amqp, tunnel, no_wait = False):
+    await _send_action_tunnel(data_store, amqp, utils.ACTION_DEL_TUNNEL, tunnel,
+        no_wait
+        ) 
 
     
-async def send_action_tunnel(data_store, amqp, action, tunnel):
+async def _send_action_tunnel(data_store, amqp, action, tunnel, no_wait):
     if not data_store.has((utils.KEY_AGENT, utils.KEY_AGENT_IP, tunnel.self_ip)):
         return
     agent_amqp = data_store.get((utils.KEY_AGENT, utils.KEY_AGENT_IP, 
@@ -115,7 +123,7 @@ async def send_action_tunnel(data_store, amqp, action, tunnel):
         "kwargs": L2_tunnel_schema().dump(tunnel).data
         }
     await amqp.publish_action(payload=payload, 
-        node = agent_amqp, callback = utils.ack_callback,
+        node = agent_amqp, callback = utils.ack_callback, no_wait = no_wait
         )
     
  

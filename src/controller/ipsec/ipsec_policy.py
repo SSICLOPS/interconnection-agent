@@ -99,6 +99,7 @@ async def create_ipsec_policy(data_store, amqp, **kwargs):
     
     
 async def delete_ipsec_policy(data_store, amqp, node_id):
-    utils.delete_object(data_store, amqp, node_id, utils.KEY_POLICY_IPSEC)
+    obj = utils.delete_object(data_store, amqp, node_id, utils.KEY_POLICY_IPSEC)
+    data_store.remove(obj)
     raise web.HTTPOk()
 

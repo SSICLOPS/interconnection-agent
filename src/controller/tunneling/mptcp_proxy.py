@@ -63,6 +63,8 @@ class Mptcp_proxy(container3.ContainerNode):
         self.node_id = str(uuid.uuid4())
         utils3.set_attributes(self, override = True, **kwargs)
         super().__init__(name="Mptcp_proxy")
+        self.status = "Pending"
+        self.deleting = False
             
 
     def lookupkeys(self):
@@ -99,23 +101,25 @@ async def create_mptcp_proxy(data_store, amqp, **kwargs):
     
 async def delete_mptcp_proxy(data_store, amqp, node_id):
     mptcp_proxy = utils.delete_object(data_store, amqp, node_id, utils.KEY_MPTCP_PROXY)
+    mptcp_proxy.status = "Deleting"
+    mptcp_proxy.deleting = True
     await send_delete_proxy(data_store, amqp, mptcp_proxy)
     raise web.HTTPAccepted()
    
 
    
-async def send_create_proxy(data_store, amqp, mptcp_proxy):
-    await send_action_proxy(data_store, amqp, utils.ACTION_ADD_PROXY, 
-        mptcp_proxy
+async def send_create_proxy(data_store, amqp, mptcp_proxy, no_wait = False):
+    await _send_action_proxy(data_store, amqp, utils.ACTION_ADD_PROXY, 
+        mptcp_proxy, no_wait
         )
 
-async def send_delete_proxy(data_store, amqp, mptcp_proxy):
-    await send_action_proxy(data_store, amqp, utils.ACTION_DEL_PROXY, 
-        mptcp_proxy
+async def send_delete_proxy(data_store, amqp, mptcp_proxy, no_wait = False):
+    await _send_action_proxy(data_store, amqp, utils.ACTION_DEL_PROXY, 
+        mptcp_proxy, no_wait
         ) 
 
     
-async def send_action_proxy(data_store, amqp, action, mptcp_proxy):
+async def _send_action_proxy(data_store, amqp, action, mptcp_proxy, no_wait):
     if not data_store.has((utils.KEY_AGENT, mptcp_proxy.agent_id)):
         return
     agent_amqp = data_store.get((utils.KEY_AGENT, mptcp_proxy.agent_id
@@ -124,5 +128,5 @@ async def send_action_proxy(data_store, amqp, action, mptcp_proxy):
         "kwargs": Mptcp_proxy_schema().dump(mptcp_proxy).data
         }
     await amqp.publish_action(payload=payload, 
-        node = agent_amqp, callback = utils.ack_callback,
+        node = agent_amqp, callback = utils.ack_callback, no_wait = no_wait
         )

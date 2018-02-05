@@ -53,7 +53,8 @@ _expansion_args = {
     "peer_name": ("tunnel", "name"),
     "tunnel_id": ("tunnel", "node_id"),
     "intercloud_id": ("expansion", "intercloud_id"),
-    "mptcp": ("network", "mptcp")
+    "mptcp": ("network", "mptcp"),
+    "status": ("expansion", "status"),
 }
 
 
@@ -75,7 +76,6 @@ class Expansion_schema(Schema):
     network_id        = fields.Str(validate=utils.network_validator)
     tunnel_id         = fields.Str(validate=utils.l2_validator)
     intercloud_id     = fields.Int(validate=validate.Range(2,4095))
-
     
     @post_load
     def load_node(self, data):
@@ -89,6 +89,8 @@ class Expansion(container3.ContainerNode):
         self.applied = False
         utils3.set_attributes(self, override = True, **kwargs)
         super().__init__(name="Expansion")
+        self.status = "Pending"
+        self.deleting = False
             
 
     def lookupkeys(self):
@@ -135,6 +137,8 @@ async def create_expansion(data_store, amqp, **kwargs):
     
 async def delete_expansion(data_store, amqp, node_id):
     expansion = utils.delete_object(data_store, amqp, node_id, utils.KEY_EXPANSION)
+    expansion.status = "Deleting"
+    expansion.deleting = True
     await send_delete_expansion(data_store, amqp, expansion)
     raise web.HTTPAccepted()
     
@@ -142,17 +146,17 @@ async def delete_expansion(data_store, amqp, node_id):
     
     
     
-async def send_create_expansion(data_store, amqp, expansion):
-    await send_action_expansion(data_store, amqp, utils.ACTION_ADD_EXPANSION, 
-        expansion
+async def send_create_expansion(data_store, amqp, expansion, no_wait = False):
+    await _send_action_expansion(data_store, amqp, utils.ACTION_ADD_EXPANSION, 
+        expansion, no_wait
         )
 
-async def send_delete_expansion(data_store, amqp, expansion):
-    await send_action_expansion(data_store, amqp, utils.ACTION_DEL_EXPANSION, 
-        expansion
+async def send_delete_expansion(data_store, amqp, expansion, no_wait = False):
+    await _send_action_expansion(data_store, amqp, utils.ACTION_DEL_EXPANSION, 
+        expansion, no_wait
         ) 
     
-async def send_action_expansion(data_store, amqp, action, expansion):
+async def _send_action_expansion(data_store, amqp, action, expansion, no_wait):
     #Get the elements to send the action
     tunnel = data_store.get(expansion.tunnel_id)
     network_obj = data_store.get(expansion.network_id)
@@ -190,7 +194,7 @@ async def send_action_expansion(data_store, amqp, action, expansion):
     if action == utils.ACTION_ADD_EXPANSION:
         if agent_amqp.node_uuid not in network_obj.agents_deployed:
             await network.send_create_network(data_store, amqp, agent_amqp, 
-                network_obj
+                network_obj, no_wait
                 )
         expansion.applied = True
     else:
@@ -201,6 +205,6 @@ async def send_action_expansion(data_store, amqp, action, expansion):
         "kwargs": data
         }
     await amqp.publish_action(payload=payload, 
-        node = agent_amqp, callback = utils.ack_callback,
+        node = agent_amqp, callback = utils.ack_callback, no_wait = no_wait
         )
  
