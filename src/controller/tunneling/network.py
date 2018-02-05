@@ -93,6 +93,7 @@ async def delete_network(data_store, amqp, node_id):
     network = utils.delete_object(data_store, amqp, node_id, utils.KEY_NETWORK)
     await remove_all_propagated_network(data_store, amqp, network)
     data_store.remove(network)
+    data_store.delete(network)
     raise web.HTTPAccepted()
     
    

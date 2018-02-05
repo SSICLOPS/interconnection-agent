@@ -85,10 +85,11 @@ class Agent(container3.ContainerNode):
         
         #find all tunnels on this node
         for address in self.addresses:
-            for tunnel_obj in data_store.lookup_list((utils.KEY_L2_TUNNEL, 
+            tunnels_list = list(data_store.lookup_list((utils.KEY_L2_TUNNEL, 
                     utils.KEY_L2_TUNNEL_IP, address
                     ), False, False
-                    ):
+                    ))
+            for tunnel_obj in tunnels_list:
                 if tunnel_obj.deleting:
                     data_store.remove(tunnel_obj)
                 else:
@@ -99,26 +100,31 @@ class Agent(container3.ContainerNode):
         
         #For each, create them and find associated connections and expansions
         for tunnel in tunnels:
-            for connection_obj in data_store.lookup_list((utils.KEY_IN_USE, 
-                    utils.KEY_CONNECTION, tunnel.node_id
-                    ), False, False
-                    ):
+            connections_list = list(data_store.lookup_list((utils.KEY_IN_USE, 
+                utils.KEY_CONNECTION, tunnel.node_id
+                ), False, False
+                ))
+            for connection_obj in connections_list:
                 if connection_obj.deleting:
                     data_store.remove(connection_obj)
                 else:
                     connections.append(connection_obj)
-            for expansion_obj in data_store.lookup_list((utils.KEY_IN_USE, 
-                    utils.KEY_EXPANSION, tunnel.node_id
-                    ), False, False
-                    ):
+                    
+            expansions_list = list(data_store.lookup_list((utils.KEY_IN_USE, 
+                utils.KEY_EXPANSION, tunnel.node_id
+                ), False, False
+                ))
+            for expansion_obj in expansions_list:
                 if expansion_obj.deleting:
                     data_store.remove(expansion_obj)
                 else:
                     expansions.append(expansion_obj)
         
         if self.mptcp_capable:
-            mptcp_proxies = data_store.lookup_list((utils.KEY_MPTCP_PROXY, 
-                    utils.KEY_AGENT, self.node_uuid), False, False)
+            mptcp_proxies = list(data_store.lookup_list(
+                (utils.KEY_MPTCP_PROXY, utils.KEY_AGENT, self.node_uuid), 
+                False, False
+                ))
             for mptcp_proxy_obj in mptcp_proxies:
                 if mptcp_proxy_obj.deleting:
                     data_store.remove(mptcp_proxy_obj)

@@ -89,8 +89,8 @@ class Vpn_connection(container3.ContainerNode):
         self.node_id = str(uuid.uuid4())
         utils3.set_attributes(self, override = True, **kwargs)
         super().__init__(name="Vpn_connection")
-        self.status = "Pending"
-        self.deleting = False
+        utils3.set_attributes(self, override = False, status="Pending",
+            deleting = False)
             
 
     def lookupkeys(self):
@@ -126,6 +126,10 @@ class Vpn_connection_schema(Schema):
     dpd_timeout = fields.Integer()
     initiator = fields.Str(validate=validate.OneOf(["start"]))
     secret = fields.Str()
+    status = fields.Str(validate=validate.OneOf(
+        ["Pending", "Ok", "Deleting", "Failed"]
+        ))
+    deleting = fields.Boolean()
     
     
     @post_load
@@ -156,6 +160,7 @@ async def delete_vpn_connection(data_store, amqp, node_id):
         )
     vpn_connection.status = "Deleting"
     vpn_connection.deleting = True
+    data_store.save(vpn_connection)
     await send_delete_connection(data_store, amqp, vpn_connection)
     raise web.HTTPAccepted()
     

@@ -34,7 +34,6 @@ from aiohttp import web
 import uuid
 from marshmallow import Schema, fields, post_load, ValidationError, validate
 import logging
-import traceback
 
 import utils
 
@@ -51,6 +50,10 @@ class Mptcp_proxy_schema(Schema):
     peer_port       = fields.Integer(validate=lambda n: 1<= n <= 65535)
     self_port_lan   = fields.Integer(validate=lambda n: 1<= n <= 65535)
     self_port_wan   = fields.Integer(validate=lambda n: 1<= n <= 65535)
+    status          = fields.Str(validate=validate.OneOf(
+        ["Pending", "Ok", "Deleting", "Failed"]
+        ))
+    deleting        = fields.Boolean()
     
     
     @post_load
@@ -64,8 +67,8 @@ class Mptcp_proxy(container3.ContainerNode):
         self.node_id = str(uuid.uuid4())
         utils3.set_attributes(self, override = True, **kwargs)
         super().__init__(name="Mptcp_proxy")
-        self.status = "Pending"
-        self.deleting = False
+        utils3.set_attributes(self, override = False, status="Pending",
+            deleting = False)
             
 
     def lookupkeys(self):
@@ -94,11 +97,8 @@ async def get_mptcp_proxies(data_store, amqp, node_id=None):
     
     
 async def create_mptcp_proxy(data_store, amqp, **kwargs):
-    try:
-        ret, mptcp_proxy = utils.create_object(data_store, amqp, Mptcp_proxy_schema, kwargs)
-        await send_create_proxy(data_store, amqp, mptcp_proxy)
-    except:
-        traceback.print_exc()
+    ret, mptcp_proxy = utils.create_object(data_store, amqp, Mptcp_proxy_schema, kwargs)
+    await send_create_proxy(data_store, amqp, mptcp_proxy)
     raise web.HTTPAccepted(content_type="application/json",
         text = ret
     )  
@@ -107,6 +107,7 @@ async def delete_mptcp_proxy(data_store, amqp, node_id):
     mptcp_proxy = utils.delete_object(data_store, amqp, node_id, utils.KEY_MPTCP_PROXY)
     mptcp_proxy.status = "Deleting"
     mptcp_proxy.deleting = True
+    data_store.save(mptcp_proxy)
     await send_delete_proxy(data_store, amqp, mptcp_proxy)
     raise web.HTTPAccepted()
    

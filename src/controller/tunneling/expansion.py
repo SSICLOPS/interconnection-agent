@@ -76,6 +76,10 @@ class Expansion_schema(Schema):
     network_id        = fields.Str(validate=utils.network_validator)
     tunnel_id         = fields.Str(validate=utils.l2_validator)
     intercloud_id     = fields.Int(validate=validate.Range(2,4095))
+    status            = fields.Str(validate=validate.OneOf(
+        ["Pending", "Ok", "Deleting", "Failed"]
+        ))
+    deleting          = fields.Boolean()
     
     @post_load
     def load_node(self, data):
@@ -89,8 +93,8 @@ class Expansion(container3.ContainerNode):
         self.applied = False
         utils3.set_attributes(self, override = True, **kwargs)
         super().__init__(name="Expansion")
-        self.status = "Pending"
-        self.deleting = False
+        utils3.set_attributes(self, override = False, status="Pending",
+            deleting = False)
             
 
     def lookupkeys(self):
@@ -139,6 +143,7 @@ async def delete_expansion(data_store, amqp, node_id):
     expansion = utils.delete_object(data_store, amqp, node_id, utils.KEY_EXPANSION)
     expansion.status = "Deleting"
     expansion.deleting = True
+    data_store.save(expansion)
     await send_delete_expansion(data_store, amqp, expansion)
     raise web.HTTPAccepted()
     

@@ -50,6 +50,10 @@ class L2_tunnel_schema(Schema):
     type            = fields.Str(validate=validate.OneOf(["gre","vxlan"]))
     enabled         = fields.Boolean()
     peer_vni        = fields.Integer(validate=lambda n: 2<= n <= 4095)
+    status          = fields.Str(validate=validate.OneOf(
+        ["Pending", "Ok", "Deleting", "Failed"]
+        ))
+    deleting        = fields.Boolean()
     
     @post_load
     def load_node(self, data):
@@ -62,8 +66,8 @@ class L2_tunnel(container3.ContainerNode):
         self.node_id = str(uuid.uuid4())
         utils3.set_attributes(self, override = True, **kwargs)
         super().__init__(name="L2_tunnel")
-        self.status = "Pending"
-        self.deleting = False
+        utils3.set_attributes(self, override = False, status="Pending",
+            deleting = False)
             
 
     def lookupkeys(self):
@@ -99,6 +103,7 @@ async def delete_l2_tunnel(data_store, amqp, node_id):
     l2_tunnel = utils.delete_object(data_store, amqp, node_id, utils.KEY_L2_TUNNEL)
     l2_tunnel.status = "Deleting"
     l2_tunnel.deleting = True
+    data_store.save(l2_tunnel)
     await send_delete_tunnel(data_store, amqp, l2_tunnel)
     raise web.HTTPAccepted()
     
