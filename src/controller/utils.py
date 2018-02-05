@@ -99,6 +99,13 @@ class Data_store_validator(object):
             raise ValidationError("{} not found".format(node_id))
         return True
         
+    def mptcp_validator(self, node_id):
+        self.check_in_data(KEY_AGENT, node_id)
+        agent = self.data_store.get((KEY_AGENT, node_id))
+        if not agent.mptcp_capable:
+            raise ValidationError("Agent {} not MPTCP capable".format(node_id))
+        return True
+        
 data_store_validator = Data_store_validator()
 l2_validator = functools.partial(data_store_validator.check_in_data,
     KEY_L2_TUNNEL
@@ -115,6 +122,8 @@ network_validator = functools.partial(data_store_validator.check_in_data,
 agent_validator = functools.partial(data_store_validator.check_in_data,
     KEY_AGENT
     )
+mptcp_agent_validator = data_store_validator.mptcp_validator
+    
 
 
 def get_objects(data_store, amqp, obj_schema, key, node_id=None): 

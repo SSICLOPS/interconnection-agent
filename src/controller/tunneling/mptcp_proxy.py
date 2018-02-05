@@ -34,6 +34,7 @@ from aiohttp import web
 import uuid
 from marshmallow import Schema, fields, post_load, ValidationError, validate
 import logging
+import traceback
 
 import utils
 
@@ -44,7 +45,7 @@ class Mptcp_proxy_schema(Schema):
     name            = fields.Str()
     node_id         = fields.Str(validate=utils.validate_uuid)
     peer_vni        = fields.Integer(validate=lambda n: 2<= n <= 4095)
-    agent_id        = fields.Str(validate=utils.agent_validator)
+    agent_id        = fields.Str(validate=utils.mptcp_agent_validator)
     peer_id         = fields.Str(validate=utils.validate_uuid)
     peer_ip         = fields.Str(validate=utils.validate_ip_address)
     peer_port       = fields.Integer(validate=lambda n: 1<= n <= 65535)
@@ -93,8 +94,11 @@ async def get_mptcp_proxies(data_store, amqp, node_id=None):
     
     
 async def create_mptcp_proxy(data_store, amqp, **kwargs):
-    ret, mptcp_proxy = utils.create_object(data_store, amqp, Mptcp_proxy_schema, kwargs)
-    await send_create_proxy(data_store, amqp, mptcp_proxy)
+    try:
+        ret, mptcp_proxy = utils.create_object(data_store, amqp, Mptcp_proxy_schema, kwargs)
+        await send_create_proxy(data_store, amqp, mptcp_proxy)
+    except:
+        traceback.print_exc()
     raise web.HTTPAccepted(content_type="application/json",
         text = ret
     )  

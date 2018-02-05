@@ -73,7 +73,8 @@ class Agent(object):
             "runtime_id":self.runtime_id,
             "standalone": self.standalone,
             "networks": list(self.networks_mapping.keys()),
-            "vni": self.self_vni
+            "vni": self.self_vni,
+            "mptcp_capable": self.mptcp_manager.enabled
             }
         return json.dumps(heartbeat_payload)
         

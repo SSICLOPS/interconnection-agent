@@ -46,6 +46,7 @@ class Agent_schema(Schema):
     vni             = fields.Integer(validate=lambda n: 2<= n <= 4095)
     standalone      = fields.Boolean()
     runtime_id      = fields.Integer()
+    mptcp_capable   = fields.Boolean()
     
     
     @post_load
@@ -80,6 +81,7 @@ class Agent(container3.ContainerNode):
         tunnels = []
         connections = []
         expansions = []
+        mptcp_proxies = []
         
         #find all tunnels on this node
         for address in self.addresses:
@@ -114,13 +116,14 @@ class Agent(container3.ContainerNode):
                 else:
                     expansions.append(expansion_obj)
         
-        mptcp_proxies = data_store.lookup_list((utils.KEY_MPTCP_PROXY, 
-                utils.KEY_AGENT, self.node_uuid), False, False)
-        for mptcp_proxy_obj in mptcp_proxies:
-            if mptcp_proxy_obj.deleting:
-                data_store.remove(mptcp_proxy_obj)
-        mptcp_proxies = data_store.lookup_list((utils.KEY_MPTCP_PROXY, 
-                utils.KEY_AGENT, self.node_uuid), False, False)
+        if self.mptcp_capable:
+            mptcp_proxies = data_store.lookup_list((utils.KEY_MPTCP_PROXY, 
+                    utils.KEY_AGENT, self.node_uuid), False, False)
+            for mptcp_proxy_obj in mptcp_proxies:
+                if mptcp_proxy_obj.deleting:
+                    data_store.remove(mptcp_proxy_obj)
+            mptcp_proxies = data_store.lookup_list((utils.KEY_MPTCP_PROXY, 
+                    utils.KEY_AGENT, self.node_uuid), False, False)
                 
         self.restarting = False
         
@@ -150,6 +153,7 @@ class Agent(container3.ContainerNode):
             await expansion.send_create_expansion(data_store, amqp, 
                 expansion_obj, no_wait = True
                 )
+        
         for mptcp_proxy_obj in mptcp_proxies:  
             await mptcp_proxy.send_create_proxy(data_store, amqp, 
                 mptcp_proxy_obj, no_wait = True

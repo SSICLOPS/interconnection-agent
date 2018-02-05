@@ -61,6 +61,8 @@ class Queue_manager(object):
             element["operation"]
             ))
         element["reply-to"] = properties.reply_to
+        if element["operation"] == "Die":
+            sys.exit()
         await self.add_to_queue(element)
         
     async def close_queue(self):

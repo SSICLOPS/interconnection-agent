@@ -17,6 +17,7 @@
                 <th><center>VNI</center></th>
                 <th><center>Standalone</center></th>
                 <th><center>Addresses</center></th>
+                <th><center>MPTCP capable</center></th>
 
 
             </tr>
@@ -26,6 +27,7 @@
                 <td><center>{{ agent["vni"] }}</center></td>
                 <td><center>{{ agent["standalone"] }}</center></td>
                 <td><center>{{ agent["addresses"] }}</center></td>
+                <td><center>{{ agent["mptcp_capable"] }}</center></td>
             </tr>
             {% endfor %}
 
@@ -433,9 +435,11 @@
                     <td><center>
                         <select name="agent_id">
                             {% for agent in agents %}
+                            {% if agent.mptcp_capable %}
                             <option value="{{ agent.node_uuid }}" >
                             {% for ip in agent.addresses %}{{ ip }} {% endfor %}
                             </option>
+                            {% endif %}
                             {% endfor %}
                         </select>
                     </center></td>
